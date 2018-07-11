@@ -228,6 +228,7 @@ mfxStatus PredictorsRepaking::RepackPredictorsPerformance(const HevcTask& task, 
 
                 block.RefIdx[0].RefL1 = block.RefIdx[0].RefL0;
                 block.MV[0][1] = block.MV[0][0];
+                numFinalL1Predictors = 1;
             }
         }
     }
