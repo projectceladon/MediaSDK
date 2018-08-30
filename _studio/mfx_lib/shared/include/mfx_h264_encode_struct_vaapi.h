@@ -31,6 +31,7 @@
 
 #define D3DDDIFMT_INTELENCODE_BITSTREAMDATA     (D3DDDIFORMAT)164 // D3DDDIFMT_DXVA_RESERVED14
 #define D3DDDIFMT_INTELENCODE_MBDATA            (D3DDDIFORMAT)165 // D3DDDIFMT_DXVA_RESERVED15
+#define D3DDDIFMT_INTELENCODE_MBSEGMENTMAP      (D3DDDIFORMAT)181
 
 typedef struct tagENCODE_COMP_BUFFER_INFO
 {
@@ -285,6 +286,7 @@ typedef struct tagENCODE_CAPS
 
     union {
         struct {
+            UINT    RoundingOffset          : 1;
             UINT    SkipFrame               : 1;
             UINT    MbQpDataSupport         : 1;
             UINT    SliceLevelWeightedPred  : 1;
@@ -295,7 +297,7 @@ typedef struct tagENCODE_CAPS
             UINT    HMEOffsetSupport        : 1;
             UINT    DirtyRectSupport        : 1;
             UINT    MoveRectSupport         : 1;
-            UINT                            : 22;
+            UINT                            : 21;
         };
         UINT      CodingLimits2;
     };

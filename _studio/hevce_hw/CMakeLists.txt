@@ -47,29 +47,14 @@ set( sources.plus "" )
 set( LIBS "" )
 set( defs "" )
 
-include_directories( ${MSDK_STUDIO_ROOT}/hevce_hw/include )
-include_directories( ${MSDK_STUDIO_ROOT}/hevce_hw/h265/include )
-set( dir ${MSDK_STUDIO_ROOT}/hevce_hw/h265/src )
-file( GLOB_RECURSE srcs "${dir}/*.c" "${dir}/*.cpp" )
-list( APPEND sources ${srcs} )
-
-list( APPEND LIBS
-  mfx_common_hw
-  umc_va_hw
-  umc
-  vm
-  vm_plus
-  ${ITT_LIBS}
-  pthread
-  dl
-)
+include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/h265/include )
+list( APPEND sources ${CMAKE_CURRENT_SOURCE_DIR}/h265/src/mfx_h265_encode_plugin.cpp )
 
 set( USE_STRICT_NAME TRUE )
 set( MFX_LDFLAGS "${MFX_ORIG_LDFLAGS} -Wl,--version-script=${MSDK_STUDIO_ROOT}/mfx_lib/plugin/libmfxsw_plugin.map" )
 set( defs "${defs} -DMFX_PLUGIN_PRODUCT_NAME=\"\\\"${HEVCE_HW_PRODUCT_NAME}\"\\\"" )
 set( defs "${defs} -DMFX_FILE_DESCRIPTION=\"\\\"${HEVCE_HW_DESCRIPTION}\"\\\"" )
-set( defs "${defs} ${WARNING_FLAGS} ${version_defs}" )
-set( defs "-DAS_HEVCE_PLUGIN ${defs} " )
+set( defs "${defs} ${version_defs}" )
 gen_plugins_cfg( "HEVC_Encoder_HW" ${HEVC_Encoder_HW_GUID} ${plugin_name} "02" "HEVC" )
 make_library( ${plugin_name} hw shared )
 install( TARGETS ${plugin_name} LIBRARY DESTINATION ${MFX_PLUGINS_DIR} )

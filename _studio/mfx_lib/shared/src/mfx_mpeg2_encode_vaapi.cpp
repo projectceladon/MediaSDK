@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Intel Corporation
+// Copyright (c) 2018 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -443,7 +443,7 @@ mfxStatus VAAPIEncoder::Init(ExecuteBuffers* pExecuteBuffers, mfxU32 numRefFrame
     m_pMiscParamsQuality->type = (VAEncMiscParameterType)VAEncMiscParameterTypeEncQuality;
 
     m_pMiscParamsSeqInfo = (VAEncMiscParameterBuffer*)new mfxU8[sizeof(VAEncMiscParameterExtensionDataSeqDisplayMPEG2) + sizeof(VAEncMiscParameterBuffer)];
-    Zero((VAEncMiscParameterExtensionDataSeqDisplayMPEG2 &)m_pMiscParamsSeqInfo->data);
+    Zero((char*)&m_pMiscParamsSeqInfo->data, sizeof(VAEncMiscParameterExtensionDataSeqDisplayMPEG2));
     m_pMiscParamsSeqInfo->type = (VAEncMiscParameterType)VAEncMiscParameterTypeExtensionData;
 
     m_pMiscParamsSkipFrame = (VAEncMiscParameterBuffer*)new mfxU8[sizeof(VAEncMiscParameterSkipFrame) + sizeof(VAEncMiscParameterBuffer)];
@@ -785,37 +785,6 @@ mfxI32 VAAPIEncoder::GetRawFrameIndex (mfxMemId memID, bool bAddFrames)
     return -1;
 } // mfxI32 VAAPIEncoder::GetRawFrameIndex (mfxMemId memID, bool bAddFrames)
 
-mfxStatus VAAPIEncoder::CreateMBDataBuffer(mfxU32 numRefFrames)
-{
-    mfxStatus sts = MFX_ERR_NONE;
-    mfxFrameAllocRequest request = {};
-
-    // Buffer for MB INFO
-    sts = QueryCompBufferInfo(D3DDDIFMT_INTELENCODE_MBDATA, &request, NULL);
-    MFX_CHECK_STS(sts);
-
-    request.NumFrameMin = (request.NumFrameMin < numRefFrames)? (mfxU16)numRefFrames:request.NumFrameMin;
-    request.NumFrameSuggested = (request.NumFrameSuggested < request.NumFrameMin)? request.NumFrameMin:request.NumFrameSuggested;
-
-    if (m_allocResponseMB.NumFrameActual == 0)
-    {
-        request.Info.FourCC = MFX_FOURCC_P8; //D3DFMT_P8;
-        request.Type = MFX_MEMTYPE_FROM_ENCODE | MFX_MEMTYPE_DXVA2_DECODER_TARGET|MFX_MEMTYPE_INTERNAL_FRAME;
-        sts = m_core->AllocFrames(&request, &m_allocResponseMB);
-        MFX_CHECK_STS(sts);
-    }
-    else
-    {
-        if (m_allocResponseMB.NumFrameActual < request.NumFrameMin)
-        {
-            return MFX_ERR_INCOMPATIBLE_VIDEO_PARAM;
-        }
-    }
-    sts = Register(&m_allocResponseMB, D3DDDIFMT_INTELENCODE_MBDATA);
-    MFX_CHECK_STS(sts);
-
-    return MFX_ERR_NONE;
-} // mfxStatus VAAPIEncoder::CreateMBDataBuffer(mfxU32 numRefFrames)
 
 mfxStatus VAAPIEncoder::CreateCompBuffers(ExecuteBuffers* pExecuteBuffers, mfxU32 numRefFrames)
 {
@@ -910,10 +879,9 @@ mfxStatus VAAPIEncoder::FillSlices(ExecuteBuffers* pExecuteBuffers)
         ENCODE_SET_SLICE_HEADER_MPEG2&  ddiSlice = pExecuteBuffers->m_pSlice[i];
         assert(ddiSlice.NumMbsForSlice == width_in_mbs);
         sliceParam = &m_sliceParam[i];
-        //sliceParam->macroblock_address = i * width_in_mbs;
-        sliceParam->macroblock_address = i;
-        sliceParam->num_macroblocks      = ddiSlice.NumMbsForSlice;
-        sliceParam->is_intra_slice       = ddiSlice.IntraSlice;
+        sliceParam->macroblock_address = i * width_in_mbs;
+        sliceParam->num_macroblocks    = ddiSlice.NumMbsForSlice;
+        sliceParam->is_intra_slice     = ddiSlice.IntraSlice;
         // prevent GPU hang due to different scale_code in different slices
         sliceParam->quantiser_scale_code = pExecuteBuffers->m_pSlice[0].quantiser_scale_code;
         MFX_DESTROY_VABUFFER(m_sliceParamBufferId[i], m_vaDisplay);
@@ -1001,6 +969,7 @@ mfxStatus VAAPIEncoder::FillQualityLevelBuffer(ExecuteBuffers* pExecuteBuffers)
     return MFX_ERR_NONE;
 } // mfxStatus VAAPIEncoder::FillQualityLevelBuffer(ExecuteBuffers* pExecuteBuffers)
 
+
 mfxStatus VAAPIEncoder::FillUserDataBuffer(mfxU8 *pUserData, mfxU32 userDataLen)
 {
     VAStatus vaSts;
@@ -1031,13 +1000,11 @@ mfxStatus VAAPIEncoder::FillUserDataBuffer(mfxU8 *pUserData, mfxU32 userDataLen)
     return MFX_ERR_NONE;
 } // mfxStatus VAAPIEncoder::FillUserDataBuffer(mfxU8 *pUserData, mfxU32 userDataLen)
 
-
 mfxStatus VAAPIEncoder::FillVideoSignalInfoBuffer(ExecuteBuffers* pExecuteBuffers)
 {
-    VAEncMiscParameterExtensionDataSeqDisplayMPEG2 &
-        miscSeqInfo  = (VAEncMiscParameterExtensionDataSeqDisplayMPEG2 &)m_pMiscParamsSeqInfo->data;
-
-    VAStatus                      vaSts;
+    // two steps cast is to work around “strict aliasing” rule warrning
+    void * data = m_pMiscParamsSeqInfo->data;
+    VAEncMiscParameterExtensionDataSeqDisplayMPEG2& miscSeqInfo = *((VAEncMiscParameterExtensionDataSeqDisplayMPEG2*)data);
 
     const mfxExtVideoSignalInfo & signalInfo = pExecuteBuffers->m_VideoSignalInfo;
     // VideoFullRange; - unused
@@ -1060,7 +1027,7 @@ mfxStatus VAAPIEncoder::FillVideoSignalInfoBuffer(ExecuteBuffers* pExecuteBuffer
     miscSeqInfo.display_vertical_size = pExecuteBuffers->m_sps.FrameHeight;
 
     MFX_DESTROY_VABUFFER(m_miscParamSeqInfoId, m_vaDisplay);
-    vaSts = vaCreateBuffer(m_vaDisplay,
+    VAStatus vaSts = vaCreateBuffer(m_vaDisplay,
         m_vaContextEncode,
         VAEncMiscParameterBufferType,
         sizeof(VAEncMiscParameterExtensionDataSeqDisplayMPEG2) + sizeof(VAEncMiscParameterBuffer),

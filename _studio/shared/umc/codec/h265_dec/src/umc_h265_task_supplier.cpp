@@ -1,15 +1,15 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -279,7 +279,6 @@ Skipping_H265::Skipping_H265()
     , m_SkipCycle(1)
     , m_ModSkipCycle(1)
     , m_PermanentTurnOffDeblocking(0)
-    , m_SkipFlag(0)
     , m_NumberOfSkippedFrames(0)
 {
 }
@@ -628,7 +627,8 @@ TaskSupplier_H265::TaskSupplier_H265()
     , m_pLastDisplayed(0)
     , m_pMemoryAllocator(0)
     , m_pFrameAllocator(0)
-    , m_WaitForIDR(0)
+    , m_WaitForIDR(false)
+    , m_prevSliceBroken(false)
     , m_RA_POC(0)
     , NoRaslOutputFlag(0)
     , m_IRAPType(NAL_UT_INVALID)
@@ -786,6 +786,7 @@ void TaskSupplier_H265::Close()
     m_decodedOrder      = false;
     m_checkCRAInsideResetProcess = false;
     m_WaitForIDR        = true;
+    m_prevSliceBroken   = false;
     m_maxUIDWhenWasDisplayed = 0;
 
     m_RA_POC = 0;
@@ -848,6 +849,7 @@ void TaskSupplier_H265::Reset()
     m_decodedOrder      = false;
     m_checkCRAInsideResetProcess = false;
     m_WaitForIDR        = true;
+    m_prevSliceBroken   = false;
     m_maxUIDWhenWasDisplayed = 0;
 
     m_RA_POC = 0;
@@ -883,6 +885,7 @@ void TaskSupplier_H265::AfterErrorRestore()
     m_decodedOrder      = false;
     m_checkCRAInsideResetProcess = false;
     m_WaitForIDR        = true;
+    m_prevSliceBroken   = false;
     m_maxUIDWhenWasDisplayed = 0;
     NoRaslOutputFlag = 1;
 
@@ -1928,13 +1931,23 @@ H265Slice *TaskSupplier_H265::DecodeSliceHeader(UMC::MediaDataEx *nalUnit)
 
     memory_leak_preventing.ClearNotification();
 
-    if (!pSlice->Reset(&m_pocDecoding))
+    bool ready = pSlice->Reset(&m_pocDecoding);
+    if (!ready)
     {
+        m_prevSliceBroken = pSlice->IsError();
         return 0;
     }
 
     H265SliceHeader * sliceHdr = pSlice->GetSliceHeader();
     VM_ASSERT(sliceHdr);
+
+    if (m_prevSliceBroken && sliceHdr->dependent_slice_segment_flag)
+    {
+        //Prev. slice contains errors. There is no relayable way to infer parameters for dependent slice
+        return 0;
+    }
+
+    m_prevSliceBroken = false;
 
     if (m_WaitForIDR)
     {
@@ -2174,9 +2187,24 @@ UMC::Status TaskSupplier_H265::AddSlice(H265Slice * pSlice, bool )
             pSlice->CopyFromBaseSlice(pLastFrameSlice);
         }
 
-        // if the slices belong to different AUs,
+        // Accord. to ITU-T H.265 7.4.2.4 Any SPS/PPS w/ id equal to active one
+        // shall have the same content, unless it follows the last VCL NAL of the coded picture
+        // and precedes the first VCL NAL unit of another coded picture
+        // if the slices belong to different AUs or SPS/PPS was changed,
         // close the current AU and start new one.
-        if (!IsPictureTheSame(firstSlice, pSlice))
+
+        const H265SeqParamSet * sps = m_Headers.m_SeqParams.GetHeader(pSlice->GetSeqParam()->GetID());
+        const H265PicParamSet * pps = m_Headers.m_PicParams.GetHeader(pSlice->GetPicParam()->GetID());
+
+        if (!sps || !pps) // undefined behavior
+            return UMC::UMC_ERR_FAILED;
+
+        bool changed =
+            sps->m_changed ||
+            pps->m_changed ||
+            !IsPictureTheSame(firstSlice, pSlice);
+
+        if (changed)
         {
             CompleteFrame(view.pCurFrame);
             OnFullFrame(view.pCurFrame);
@@ -2189,6 +2217,16 @@ UMC::Status TaskSupplier_H265::AddSlice(H265Slice * pSlice, bool )
     // try to allocate a new frame.
     else
     {
+        H265SeqParamSet * sps = m_Headers.m_SeqParams.GetHeader(pSlice->GetSeqParam()->GetID());
+        H265PicParamSet * pps = m_Headers.m_PicParams.GetHeader(pSlice->GetPicParam()->GetID());
+
+        if (!sps || !pps) // undefined behavior
+            return UMC::UMC_ERR_FAILED;
+
+        // clear change flags when get first VCL NAL
+        sps->m_changed = false;
+        pps->m_changed = false;
+
         // allocate a new frame, initialize it with slice's parameters.
         pFrame = AllocateNewFrame(pSlice);
         if (!pFrame)
@@ -2276,9 +2314,13 @@ void TaskSupplier_H265::CompleteFrame(H265DecoderFrame * pFrame)
 
     DEBUG_PRINT((VM_STRING("Complete frame POC - (%d) type - %d, count - %d, m_uid - %d, IDR - %d\n"), pFrame->m_PicOrderCnt, pFrame->m_FrameType, slicesInfo->GetSliceCount(), pFrame->m_UID, slicesInfo->GetAnySlice()->GetSliceHeader()->IdrPicFlag));
 
+    slicesInfo->EliminateASO();
+    slicesInfo->EliminateErrors();
+    m_prevSliceBroken = false;
+
     // skipping algorithm
-    const H265Slice *slice = slicesInfo->GetAnySlice();
-    if (IsShouldSkipFrame(pFrame) || IsSkipForCRAorBLA(slice))
+    const H265Slice *slice = slicesInfo->GetSlice(0);
+    if (!slice || IsShouldSkipFrame(pFrame) || IsSkipForCRAorBLA(slice))
     {
         slicesInfo->SetStatus(H265DecoderFrameInfo::STATUS_COMPLETED);
 
@@ -2290,11 +2332,6 @@ void TaskSupplier_H265::CompleteFrame(H265DecoderFrame * pFrame)
         DEBUG_PRINT((VM_STRING("Skip frame ForCRAorBLA - %s\n"), GetFrameInfoString(pFrame)));
         return;
     }
-
-    slicesInfo->EliminateASO();
-
-    slicesInfo->EliminateErrors();
-
 
     slicesInfo->SetStatus(H265DecoderFrameInfo::STATUS_FILLED);
 }
@@ -2374,7 +2411,7 @@ UMC::Status TaskSupplier_H265::AllocateFrameData(H265DecoderFrame * pFrame, mfxS
     pFrame->allocate(frmData, &info);
     pFrame->m_index = frmMID;
 
-    pPicParamSet = pPicParamSet;
+    (void)pPicParamSet;
 
     return UMC::UMC_OK;
 }
@@ -2579,7 +2616,7 @@ uint32_t GetLevelIDCIndex(uint32_t level_idc)
 }
 
 // Calculate maximum DPB size based on level and resolution
-int32_t CalculateDPBSize(uint32_t profile_idc, uint32_t &level_idc, int32_t width, int32_t height, uint32_t num_ref_frames)
+int32_t CalculateDPBSize(uint32_t /*profile_idc*/, uint32_t &level_idc, int32_t width, int32_t height, uint32_t num_ref_frames)
 {
     // can increase level_idc to hold num_ref_frames
     uint32_t lumaPsArray[] = { 36864, 122880, 245760, 552960, 983040, 2228224, 2228224, 8912896, 8912896, 8912896, 35651584, 35651584, 35651584 };
@@ -2592,7 +2629,6 @@ int32_t CalculateDPBSize(uint32_t profile_idc, uint32_t &level_idc, int32_t widt
         uint32_t MaxLumaPs = lumaPsArray[index];
         uint32_t const maxDpbPicBuf =
             6;//HW handles second version of current reference (twoVersionsOfCurrDecPicFlag) itself
-        profile_idc;
 
         uint32_t PicSizeInSamplesY = width * height;
 

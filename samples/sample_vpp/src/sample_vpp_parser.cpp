@@ -87,7 +87,7 @@ msdk_printf(MSDK_STRING("   [-dcrY  y]                  - cropY  of dst video (d
 msdk_printf(MSDK_STRING("   [-dcrW  w]                  - cropW  of dst video (def: width)\n"));
 msdk_printf(MSDK_STRING("   [-dcrH  h]                  - cropH  of dst video (def: height)\n"));
 msdk_printf(MSDK_STRING("   [-df  frameRate]            - frame rate of dst video (def: 30.0)\n"));
-msdk_printf(MSDK_STRING("   [-dcc format]               - format (FourCC) of dst video (def: nv12. support i420|nv12|yuy2|rgb4|yv12|ayuv)\n"));
+msdk_printf(MSDK_STRING("   [-dcc format]               - format (FourCC) of dst video (def: nv12. support i420|nv12|yuy2|rgb4|rgbp|yv12|ayuv)\n"));
 msdk_printf(MSDK_STRING("   [-dbitshift 0|1]            - shift data to right or keep it the same way as in Microsoft's P010\n"));
 msdk_printf(MSDK_STRING("   [-dbitdepthluma value]      - shift luma channel to left to \"16 - value\" bytes\n"));
 msdk_printf(MSDK_STRING("   [-dbitdepthchroma value]    - shift chroma channel to left to \"16 - value\" bytes\n"));
@@ -170,6 +170,9 @@ msdk_printf(MSDK_STRING("   [-rotate (angle)]   - enable rotation. Supported ang
 msdk_printf(MSDK_STRING("   [-scaling_mode (mode)] - specify type of scaling to be used for resize.\n"));
 msdk_printf(MSDK_STRING("   [-denoise (level)]  - enable denoise algorithm. Level is optional \n"));
 msdk_printf(MSDK_STRING("                         range of  noise level is [0, 100]\n"));
+#if MFX_VERSION >= 1025
+msdk_printf(MSDK_STRING("   [-chroma_siting (vmode hmode)] - specify chroma siting mode for VPP color conversion, allowed values: vtop|vcen|vbot hleft|hcen\n"));
+#endif
 #ifdef ENABLE_MCTF
 #if !defined ENABLE_MCTF_EXT
 msdk_printf(MSDK_STRING("  -mctf [Strength]\n"));
@@ -240,7 +243,6 @@ msdk_printf(MSDK_STRING("   [-istab (mode)]       - enable Image Stabilization a
 msdk_printf(MSDK_STRING("                           mode of istab can be [1, 2] (def: 2)\n"));
 msdk_printf(MSDK_STRING("                           where: 1 means upscale mode, 2 means croppping mode\n"));
 msdk_printf(MSDK_STRING("   [-view:count value]   - enable Multi View preprocessing. range of views [1, 1024] (def: 1)\n\n"));
-msdk_printf(MSDK_STRING("   [-svc id width height]- enable Scalable Video Processing mode\n"));
 msdk_printf(MSDK_STRING("                           id-layerId, width/height-resolution \n\n"));
 msdk_printf(MSDK_STRING("   [-ssitm (id)]         - specify YUV<->RGB transfer matrix for input surface.\n"));
 msdk_printf(MSDK_STRING("   [-dsitm (id)]         - specify YUV<->RGB transfer matrix for output surface.\n"));
@@ -336,6 +338,10 @@ mfxU32 Str2FourCC( msdk_char* strInput )
     else if ( 0 == msdk_stricmp(strInput, MSDK_STRING("rgb4")) )
     {
         fourcc = MFX_FOURCC_RGB4;
+    }
+    else if ( 0 == msdk_stricmp(strInput, MSDK_STRING("rgbp")) )
+    {
+        fourcc = MFX_FOURCC_RGBP;
     }
     else if ( 0 == msdk_stricmp(strInput, MSDK_STRING("yuy2")) )
     {
@@ -471,7 +477,7 @@ msdk_char* ParseArgn(msdk_char* pIn, mfxU32 argn, msdk_char separator) {
 };
 
 template <typename T> 
-void ArgConvert(msdk_char* pIn, mfxU32 argn, msdk_char* pattern, T* pArg, T ArgDefault, mfxU32& NumOfGoodConverts) {
+void ArgConvert(msdk_char* pIn, mfxU32 argn, const msdk_char* pattern, T* pArg, T ArgDefault, mfxU32& NumOfGoodConverts) {
     msdk_char* pargs = ParseArgn(pIn, argn, msdk_char(':'));
     if (pargs) {
         if (!msdk_sscanf(pargs, pattern, pArg))
@@ -1291,6 +1297,32 @@ mfxStatus vppParseInputString(msdk_char* strInput[], mfxU8 nArgNum, sInputParams
                 pParams->bScaling = true;
                 msdk_sscanf(strInput[i], MSDK_STRING("%hu"), &pParams->scalingMode);
             }
+#if MFX_VERSION >= 1025
+            else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-chroma_siting")))
+            {
+                VAL_CHECK(2 + i == nArgNum);
+                bool bVfound = false;
+                bool bHfound = false;
+                i++;
+                for (int ii = 0; ii < 2; ii++)
+                {
+                    /* ChromaSiting */
+                    if (msdk_strcmp(strInput[i + ii], MSDK_STRING("vtop")) == 0) { pParams->uChromaSiting |= MFX_CHROMA_SITING_VERTICAL_TOP; bVfound = true; }
+                    else if (msdk_strcmp(strInput[i + ii], MSDK_STRING("vcen")) == 0) { pParams->uChromaSiting |= MFX_CHROMA_SITING_VERTICAL_CENTER; bVfound = true; }
+                    else if (msdk_strcmp(strInput[i + ii], MSDK_STRING("vbot")) == 0) { pParams->uChromaSiting |= MFX_CHROMA_SITING_VERTICAL_BOTTOM; bVfound = true; }
+                    else if (msdk_strcmp(strInput[i + ii], MSDK_STRING("hleft")) == 0) { pParams->uChromaSiting |= MFX_CHROMA_SITING_HORIZONTAL_LEFT; bHfound = true; }
+                    else if (msdk_strcmp(strInput[i + ii], MSDK_STRING("hcen")) == 0) { pParams->uChromaSiting |= MFX_CHROMA_SITING_HORIZONTAL_CENTER; bHfound = true; }
+                    else msdk_strcmp(MSDK_STRING("Unknown Chroma siting flag %s"), strInput[i + ii]);
+                }
+                pParams->bChromaSiting = bVfound && bHfound;
+                if (!pParams->bChromaSiting)
+                {
+                    vppPrintHelp(strInput[0], MSDK_STRING("Invalid chroma siting flags\n"));
+                    return MFX_ERR_UNSUPPORTED;
+                }
+                i++;
+            }
+#endif
             else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-composite")))
             {
                 if( i+1 < nArgNum )

@@ -40,6 +40,9 @@
  #include "cm_mem_copy.h"         // Needed for mirroring kernels
  #include "genx_fcopy_gen8_isa.h" // Field copy kernels
  #include "genx_fcopy_gen9_isa.h"
+ #include "genx_fcopy_gen10_isa.h"
+ #include "genx_fcopy_gen11_isa.h"
+ #include "genx_fcopy_gen11lp_isa.h"
 
 #ifdef MFX_ENABLE_MCTF
 #include "mctf_common.h"
@@ -307,7 +310,7 @@ namespace MfxHwVideoProcessing
     {
         bool   m_bMode30i60pEnable;
         bool   m_bWeave;
-        bool   m_bPassThroughEnable;
+        bool   m_bCopyPassThroughEnable;// if this flag is true input surface will be copied to output via DoFastCopyWrapper() without VPP
         bool   m_bRefFrameEnable;
         bool   m_multiBlt;// this flag defines mode of composition for D3D11: 1 - run few hw calls per frame (Blt), 0 - run one hw call (Blt)
 
@@ -321,6 +324,8 @@ namespace MfxHwVideoProcessing
     public:
 
         ResMngr(void)
+            : m_subTaskQueue()
+            , m_surfQueue()
         {
             m_bOutputReady = false;
             m_bRefFrameEnable = false;
