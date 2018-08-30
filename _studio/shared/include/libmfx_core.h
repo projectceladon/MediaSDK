@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Intel Corporation
+// Copyright (c) 2017-2018 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -98,7 +98,7 @@ public:
     virtual mfxStatus DecreasePureReference(mfxU16 &Locked);
 
     // Get Video Accelerator.
-    virtual void  GetVA(mfxHDL* phdl, mfxU16 type) {type=type;*phdl = 0;}
+    virtual void  GetVA(mfxHDL* phdl, mfxU16 type);
     virtual mfxStatus CreateVA(mfxVideoParam * , mfxFrameAllocRequest *, mfxFrameAllocResponse *, UMC::FrameAllocator *) { return MFX_ERR_UNSUPPORTED; }
     // Get the current working adapter's number
     virtual mfxU32 GetAdapterNumber(void) {return 0;}
@@ -133,7 +133,7 @@ public:
     virtual
     mfxStatus CopyFrameEx(mfxFrameSurface1 *pDst, mfxU16 dstMemType, mfxFrameSurface1 *pSrc, mfxU16 srcMemType) {return DoFastCopyWrapper(pDst, dstMemType, pSrc, srcMemType);}
 
-    virtual mfxStatus IsGuidSupported(const GUID guid, mfxVideoParam *par, bool isEncoder = false) {guid; par; isEncoder;  return MFX_ERR_NONE;};
+    virtual mfxStatus IsGuidSupported(const GUID /*guid*/, mfxVideoParam * /*par*/, bool /*isEncoder = false*/) { return MFX_ERR_NONE; };
 
     bool CheckOpaqueRequest(mfxFrameAllocRequest *request, mfxFrameSurface1 **pOpaqueSurface, mfxU32 NumOpaqueSurface, bool ExtendedSearch = true);
     
@@ -198,7 +198,7 @@ protected:
     protected:
         T* m_ptr;
     private:
-        s_ptr(s_ptr&);
+        s_ptr(const s_ptr&);
         void operator =(s_ptr &);
     };
 

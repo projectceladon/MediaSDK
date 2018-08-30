@@ -1,15 +1,15 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -27,11 +27,9 @@
 #include <vm_sys_info.h>
 #include <umc_automatic_mutex.h>
 #include <mfx_trace.h>
+
+#include <functional>
 #include <cassert>
-
-
-
-
 
 enum
 {
@@ -59,7 +57,6 @@ mfxStatus mfxSchedulerCore::Initialize2(const MFX_SCHEDULER_PARAM2 *pParam)
 {
     UMC::Status umcRes;
     mfxU32 i;
-    mfxU32 iRes;
 
     // release the object before initialization
     Close();
@@ -137,14 +134,9 @@ mfxStatus mfxSchedulerCore::Initialize2(const MFX_SCHEDULER_PARAM2 *pParam)
                     return MFX_ERR_UNKNOWN;
                 }
                 // spawn a thread
-                iRes = vm_thread_create(
-                    &(m_pThreadCtx[i].threadHandle),
-                    scheduler_thread_proc,
-                    m_pThreadCtx + i);
-                if (0 == iRes)
-                {
-                    return MFX_ERR_UNKNOWN;
-                }
+                m_pThreadCtx[i].threadHandle = std::thread(
+                    std::bind(&mfxSchedulerCore::ThreadProc, this, &m_pThreadCtx[i]));
+
                 if (!SetScheduling(m_pThreadCtx[i].threadHandle)) {
                     return MFX_ERR_UNKNOWN;
                 }
@@ -217,8 +209,8 @@ mfxStatus mfxSchedulerCore::Synchronize(mfxTaskHandle handle, mfxU32 timeToWait)
     if (MFX_SINGLE_THREAD == m_param.flags)
     {
         //let really run task to
-        MFX_CALL_INFO call = {0};
-        mfxTaskHandle previousTaskHandle = {0, 0};
+        MFX_CALL_INFO call = {};
+        mfxTaskHandle previousTaskHandle = {};
 
         mfxStatus task_sts = MFX_ERR_NONE;
         mfxU64 start = GetHighPerformanceCounter();
@@ -334,6 +326,8 @@ mfxStatus mfxSchedulerCore::Synchronize(mfxTaskHandle handle, mfxU32 timeToWait)
 
 mfxStatus mfxSchedulerCore::GetTimeout(mfxU32& maxTimeToRun)
 {
+    (void)maxTimeToRun;
+
     return MFX_ERR_UNSUPPORTED;
 }
 
@@ -551,20 +545,14 @@ mfxStatus mfxSchedulerCore::AdjustPerformance(const mfxSchedulerMessage message)
     case MFX_SCHEDULER_START_HW_LISTENING:
         if (m_param.flags != MFX_SINGLE_THREAD)
         {
-            if (0 == vm_thread_is_valid(&m_hwWakeUpThread))
-            {
-                mfxRes = StartWakeUpThread();
-            }
+            mfxRes = StartWakeUpThread();
         }
         break;
 
     case MFX_SCHEDULER_STOP_HW_LISTENING:
         if (m_param.flags != MFX_SINGLE_THREAD)
         {
-            if (vm_thread_is_valid(&m_hwWakeUpThread))
-            {
-                mfxRes = StopWakeUpThread();
-            }
+            mfxRes = StopWakeUpThread();
         }
         break;
 

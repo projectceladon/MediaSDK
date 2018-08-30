@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <assert.h>
 #include "mfx_common.h"
 #include <mfx_session.h>
 
@@ -577,8 +578,8 @@ _mfxSession::_mfxSession(const mfxU32 adapterNum)
     , m_priority()
     , m_version()
     , m_pOperatorCore()
-    , m_bIsHWENCSupport()
-    , m_bIsHWDECSupport()
+    , m_reserved1()
+    , m_reserved2()
 {
     m_currentPlatform = MFX_PLATFORM_HARDWARE;
 
@@ -597,13 +598,33 @@ void _mfxSession::Clear(void)
     m_pSchedulerAllocated = NULL;
 
     m_priority = MFX_PRIORITY_NORMAL;
-    m_bIsHWENCSupport = false;
-    //m_coreInt.ExternalSurfaceAllocator = 0;
-
 } // void _mfxSession::Clear(void)
 
 void _mfxSession::Cleanup(void)
 {
+    // wait until all task are processed
+    if (m_pScheduler)
+    {
+        if (m_plgGen.get())
+            m_pScheduler->WaitForTaskCompletion(m_plgGen.get());
+        if (m_plgDec.get())
+            m_pScheduler->WaitForTaskCompletion(m_plgDec.get());
+        if (m_pDECODE.get())
+            m_pScheduler->WaitForTaskCompletion(m_pDECODE.get());
+        if (m_plgVPP.get())
+            m_pScheduler->WaitForTaskCompletion(m_plgVPP.get());
+        if (m_pVPP.get())
+            m_pScheduler->WaitForTaskCompletion(m_pVPP.get());
+        if (m_pENC.get())
+            m_pScheduler->WaitForTaskCompletion(m_pENC.get());
+        if (m_pPAK.get())
+            m_pScheduler->WaitForTaskCompletion(m_pPAK.get());
+        if (m_plgEnc.get())
+            m_pScheduler->WaitForTaskCompletion(m_plgEnc.get());
+        if (m_pENCODE.get())
+            m_pScheduler->WaitForTaskCompletion(m_pENCODE.get());
+    }
+
     // unregister plugin before closing
     if (m_plgGen.get())
     {
@@ -622,15 +643,6 @@ void _mfxSession::Cleanup(void)
         m_plgVPP->PluginClose();
     }
 
-    if (m_pScheduler)
-    {
-        m_pScheduler->Release();
-    }
-    if (m_pSchedulerAllocated)
-    {
-        m_pSchedulerAllocated->Release();
-    }
-
     // release the components the excplicit way.
     // do not relay on default deallocation order,
     // somebody could change it.
@@ -641,6 +653,9 @@ void _mfxSession::Cleanup(void)
     m_pDECODE.reset();
     m_pENCODE.reset();
     m_pCORE.reset();
+
+    // release m_pScheduler and m_pSchedulerAllocated
+    ReleaseScheduler();
 
     //delete m_coreInt.ExternalSurfaceAllocator;
     Clear();
@@ -669,22 +684,21 @@ mfxStatus _mfxSession::Init(mfxIMPL implInterface, mfxVersion *ver)
     // save working HW interface
     switch (implInterface&-MFX_IMPL_VIA_ANY)
     {
-        // if nothing is set, nothing is returned
     case MFX_IMPL_UNSUPPORTED:
-        m_implInterface = MFX_IMPL_UNSUPPORTED;
+        assert(!"MFXInit(Ex) was supposed to correct zero-impl to MFX_IMPL_VIA_ANY");
+        return MFX_ERR_UNDEFINED_BEHAVIOR;
+#if defined(MFX_VA_LINUX)
+    // VAAPI is only one supported interface
+    case MFX_IMPL_VIA_ANY:
+    case MFX_IMPL_VIA_VAAPI:
+        m_implInterface = MFX_IMPL_VIA_VAAPI;
         break;
+#else
     case MFX_IMPL_VIA_D3D9:
         m_implInterface = MFX_IMPL_VIA_D3D9;
         break;
     case MFX_IMPL_VIA_D3D11:
         m_implInterface = MFX_IMPL_VIA_D3D11;
-        break;
-        
-#if defined(MFX_VA_LINUX)        
-        // VAAPI is only one supported interface
-    case MFX_IMPL_VIA_ANY:
-    case MFX_IMPL_VIA_VAAPI:
-        m_implInterface = MFX_IMPL_VIA_VAAPI;
         break;
 #endif        
 
@@ -696,6 +710,9 @@ mfxStatus _mfxSession::Init(mfxIMPL implInterface, mfxVersion *ver)
 
     // get the number of available threads
     maxNumThreads = vm_sys_info_get_cpu_num();
+    if (maxNumThreads == 1) {
+        maxNumThreads = 2;
+    }
 
     // allocate video core
     if (MFX_PLATFORM_SOFTWARE == m_currentPlatform)
@@ -765,10 +782,10 @@ mfxStatus _mfxSession::ReleaseScheduler(void)
         m_pScheduler->Release();
     
     if(m_pSchedulerAllocated)
-    m_pSchedulerAllocated->Release();
+        m_pSchedulerAllocated->Release();
 
-    m_pScheduler = NULL;
-    m_pSchedulerAllocated = NULL;
+    m_pScheduler = nullptr;
+    m_pSchedulerAllocated = nullptr;
     
     return MFX_ERR_NONE;
 
@@ -866,26 +883,25 @@ mfxStatus _mfxSession_1_10::InitEx(mfxInitParam& par)
     // save working HW interface
     switch (par.Implementation&-MFX_IMPL_VIA_ANY)
     {
-        // if nothing is set, nothing is returned
     case MFX_IMPL_UNSUPPORTED:
-        m_implInterface = MFX_IMPL_UNSUPPORTED;
+        assert(!"MFXInit(Ex) was supposed to correct zero-impl to MFX_IMPL_VIA_ANY");
+        return MFX_ERR_UNDEFINED_BEHAVIOR;
+#if defined(MFX_VA_LINUX)
+    // VAAPI is only one supported interface
+    case MFX_IMPL_VIA_ANY:
+    case MFX_IMPL_VIA_VAAPI:
+        m_implInterface = MFX_IMPL_VIA_VAAPI;
         break;
+#else
     case MFX_IMPL_VIA_D3D9:
         m_implInterface = MFX_IMPL_VIA_D3D9;
         break;
     case MFX_IMPL_VIA_D3D11:
         m_implInterface = MFX_IMPL_VIA_D3D11;
         break;
-
-#if defined(MFX_VA_LINUX)        
-        // VAAPI is only one supported interface
-    case MFX_IMPL_VIA_ANY:
-    case MFX_IMPL_VIA_VAAPI:
-        m_implInterface = MFX_IMPL_VIA_VAAPI;
-        break;
 #endif        
 
-        // unknown hardware interface
+    // unknown hardware interface
     default:
         if (MFX_PLATFORM_HARDWARE == m_currentPlatform)
             return MFX_ERR_INCOMPATIBLE_VIDEO_PARAM;
@@ -906,7 +922,13 @@ mfxStatus _mfxSession_1_10::InitEx(mfxInitParam& par)
     }
 
     // get the number of available threads
-    maxNumThreads = (par.ExternalThreads != 0) ? 0 : vm_sys_info_get_cpu_num();
+    maxNumThreads = 0;
+    if (par.ExternalThreads == 0) {
+        maxNumThreads = vm_sys_info_get_cpu_num();
+        if (maxNumThreads == 1) {
+            maxNumThreads = 2;
+        }
+    }
 
     // allocate video core
     if (MFX_PLATFORM_SOFTWARE == m_currentPlatform)
