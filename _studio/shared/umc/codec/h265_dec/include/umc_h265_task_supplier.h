@@ -97,7 +97,6 @@ private:
     int32_t m_SkipCycle;
     int32_t m_ModSkipCycle;
     int32_t m_PermanentTurnOffDeblocking;
-    int32_t m_SkipFlag;
 
     int32_t m_NumberOfSkippedFrames;
 };
@@ -449,6 +448,7 @@ protected:
 
     // Keep track of which parameter set is in use.
     bool              m_WaitForIDR;
+    bool              m_prevSliceBroken;
 
     int32_t m_RA_POC;
     uint8_t  NoRaslOutputFlag;

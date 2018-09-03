@@ -74,6 +74,10 @@ void PrintHelp(const msdk_char *strAppName, const msdk_char *strErrorMessage)
     msdk_printf(MSDK_STRING("   [-qp qp_value] - QP value for frames (default is 26)\n"));
     msdk_printf(MSDK_STRING("   [-DisableQPOffset] - disable QP offset per pyramid layer\n"));
     msdk_printf(MSDK_STRING("   [-f frameRate] - video frame rate (frames per second)\n"));
+    msdk_printf(MSDK_STRING("   [-b bitRate]   - target bitrate (Kbits per second)\n"));
+    msdk_printf(MSDK_STRING("   [-ExtBRC]      - enables external BRC\n"));
+    msdk_printf(MSDK_STRING("   [-profile value] - codec profile\n"));
+    msdk_printf(MSDK_STRING("   [-level value]   - codec level\n"));
     msdk_printf(MSDK_STRING("   [-idr_interval size] - if IdrInterval = 0, then only first I-frame is an IDR-frame\n"));
     msdk_printf(MSDK_STRING("                          if IdrInterval = 1, then every I - frame is an IDR - frame\n"));
     msdk_printf(MSDK_STRING("                          if IdrInterval = 2, then every other I - frame is an IDR - frame, etc (default is 0)\n"));
@@ -81,7 +85,7 @@ void PrintHelp(const msdk_char *strAppName, const msdk_char *strErrorMessage)
     msdk_printf(MSDK_STRING("   [-gop_opt closed|strict] - GOP optimization flags (can be used together)\n"));
     msdk_printf(MSDK_STRING("   [-r (-GopRefDist) distance] - Distance between I- or P- key frames (1 means no B-frames) (0 - by default(I frames))\n"));
     msdk_printf(MSDK_STRING("   [-num_ref (-NumRefFrame) numRefs] - number of available reference frames (DPB size)\n"));
-    msdk_printf(MSDK_STRING("   [-NumRefActiveP   numRefs] - number of maximum allowed references for P frames (valid range is [1, 3])\n"));
+    msdk_printf(MSDK_STRING("   [-NumRefActiveP   numRefs] - number of maximum allowed references for P/GPB frames (valid range is [1, 3])\n"));
     msdk_printf(MSDK_STRING("   [-NumRefActiveBL0 numRefs] - number of maximum allowed backward references for B frames (valid range is [1, 3])\n"));
     msdk_printf(MSDK_STRING("   [-NumRefActiveBL1 numRefs] - number of maximum allowed forward references for B frames (only 1 is supported)\n"));
     msdk_printf(MSDK_STRING("   [-NumPredictorsL0 numPreds] - number of maximum L0 predictors (default - assign depending on the frame type)\n"));
@@ -110,15 +114,20 @@ void PrintHelp(const msdk_char *strAppName, const msdk_char *strErrorMessage)
     msdk_printf(MSDK_STRING("   [-qrep] - quality predictor MV repacking before encode\n"));
     msdk_printf(MSDK_STRING("   [-SearchWindow value] - specifies one of the predefined search path and window size. In range [1,5] (5 is default).\n"));
     msdk_printf(MSDK_STRING("                           If zero value specified: -RefWidth / RefHeight, -LenSP are required\n"));
-    msdk_printf(MSDK_STRING("   [-RefWidth width] - width of search region (should be multiple of 4), maximum allowed search window is 64x32 for\n"));
-    msdk_printf(MSDK_STRING("                       one direction and 32x32 for bidirectional search\n"));
-    msdk_printf(MSDK_STRING("   [-RefHeight height] - height of search region (should be multiple of 4), maximum allowed is 32\n"));
+    msdk_printf(MSDK_STRING("   [-RefWidth width]   - width of search region (should be multiple of 4),\n"));
+    msdk_printf(MSDK_STRING("                         valid range is [20, 64] for one direction and [20, 32] for bidirectional search\n"));
+    msdk_printf(MSDK_STRING("   [-RefHeight height] - height of search region (should be multiple of 4),\n"));
+    msdk_printf(MSDK_STRING("                         valid range is [20, 64] for one direction and [20, 32] for bidirectional search\n"));
+    msdk_printf(MSDK_STRING("   NOTE: Maximum allowed search area size is 2048 for one directional and 1024 for bidirectional search.\n"));
     msdk_printf(MSDK_STRING("   [-LenSP length] - defines number of search units in search path. In range [1,63] (default is 57)\n"));
     msdk_printf(MSDK_STRING("   [-SearchPath value] - defines shape of search path. 1 - diamond, 2 - full, 0 - default (full).\n"));
     msdk_printf(MSDK_STRING("   [-AdaptiveSearch] - enables adaptive search\n"));
+    msdk_printf(MSDK_STRING("   [-preenc::SearchWindow value] - specifies one of the predefined search path and window size for PreENC.\n"));
+    msdk_printf(MSDK_STRING("                                   In range [1,5] (5 is default).\n"));
 
     msdk_printf(MSDK_STRING("   [-timeout seconds] - set time to run processing in seconds\n"));
-
+    msdk_printf(MSDK_STRING("   [-repackctrl <file-name>] - use this to input encode repack ctrl file\n"));
+    msdk_printf(MSDK_STRING("   [-repackstat <file-name>] - use this to output encode repack stat file\n"));
     msdk_printf(MSDK_STRING("\n"));
 }
 
@@ -238,6 +247,16 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU32 nArgNum, sInputParams& 
         {
             CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
             PARSE_CHECK(msdk_opt_read(strInput[++i], params.nNumFrames), "NumFrames", isParseInvalid);
+        }
+        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-profile")))
+        {
+            CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
+            PARSE_CHECK(msdk_opt_read(strInput[++i], params.CodecProfile), "CodecProfile", isParseInvalid);
+        }
+        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-level")))
+        {
+            CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
+            PARSE_CHECK(msdk_opt_read(strInput[++i], params.CodecLevel), "CodecLevel", isParseInvalid);
         }
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-g")))
         {
@@ -418,10 +437,11 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU32 nArgNum, sInputParams& 
         {
             CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
             PARSE_CHECK(msdk_opt_read(strInput[++i], params.encodeCtrl.SearchWindow), "SearchWindow", isParseInvalid);
-
-            // PreENC doesn't support SearchWindow 0
-            if (params.encodeCtrl.SearchWindow)
-                params.preencCtrl.SearchWindow = params.encodeCtrl.SearchWindow;
+        }
+        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-preenc::SearchWindow")))
+        {
+            CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
+            PARSE_CHECK(msdk_opt_read(strInput[++i], params.preencCtrl.SearchWindow), "SearchWindow", isParseInvalid);
         }
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-LenSP")))
         {
@@ -443,6 +463,15 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU32 nArgNum, sInputParams& 
             CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
             PARSE_CHECK(msdk_opt_read(strInput[++i], params.encodeCtrl.SearchPath), "SearchPath", isParseInvalid);
         }
+        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-ExtBRC")))
+        {
+            params.bExtBRC = true;
+        }
+        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-b")))
+        {
+            CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
+            PARSE_CHECK(msdk_opt_read(strInput[++i], params.TargetKbps), "Bitrate", isParseInvalid);
+        }
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-DisableQPOffset")))
         {
             params.bDisableQPOffset = true;
@@ -451,6 +480,16 @@ mfxStatus ParseInputString(msdk_char* strInput[], mfxU32 nArgNum, sInputParams& 
         {
             CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
             PARSE_CHECK(msdk_opt_read(strInput[++i], params.nTimeout), "timeout", isParseInvalid);
+        }
+        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-repackctrl")))
+        {
+            CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
+            PARSE_CHECK(msdk_opt_read(strInput[++i], params.repackctrlFile), "Repack ctrl File", isParseInvalid);
+        }
+        else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("-repackstat")))
+        {
+            CHECK_NEXT_VAL(i + 1 >= nArgNum, strInput[i], strInput[0]);
+            PARSE_CHECK(msdk_opt_read(strInput[++i], params.repackstatFile), "Repack stat File", isParseInvalid);
         }
         else if (0 == msdk_strcmp(strInput[i], MSDK_STRING("?")))
         {
@@ -491,6 +530,11 @@ mfxStatus CheckOptions(const sInputParams& params, const msdk_char* appName)
     {
         PrintHelp(appName, "-w -h is not specified");
         return MFX_ERR_UNSUPPORTED;
+    }
+    if (params.QP && params.bExtBRC)
+    {
+        PrintHelp(appName, "Invalid bitrate control (QP + ExtBRC is unsupported)");
+        return MFX_ERR_UNDEFINED_BEHAVIOR;
     }
     if (params.QP > 51)
     {
@@ -608,7 +652,7 @@ void AdjustOptions(sInputParams& params)
     params.nNumSlices       = tune(params.nNumSlices, 0, 1);
     params.nIdrInterval     = tune(params.nIdrInterval, 0, 0xffff);
 
-    if (params.nRefDist < 2)
+    if (params.nRefDist < 2) // avoid impact of NumRefActiveBL0/L1 in gop with P/GPB only
     {
         params.NumRefActiveBL0 = params.NumRefActiveBL1 = 0;
     }
@@ -625,13 +669,13 @@ void AdjustOptions(sInputParams& params)
         params.bEncodedOrder = true;
     }
 
-    if (params.encodeCtrl.SearchWindow && (params.encodeCtrl.AdaptiveSearch || params.encodeCtrl.SearchPath
-        || params.encodeCtrl.LenSP || params.encodeCtrl.RefWidth || params.encodeCtrl.RefHeight))
+    if (params.encodeCtrl.SearchWindow && (params.encodeCtrl.SearchPath || params.encodeCtrl.LenSP
+                                        || params.encodeCtrl.RefWidth || params.encodeCtrl.RefHeight))
     {
         msdk_printf(MSDK_STRING("WARNING: SearchWindow is specified."));
-        msdk_printf(MSDK_STRING("LenSP, RefWidth, RefHeight, SearchPath and AdaptiveSearch will be ignored.\n"));
+        msdk_printf(MSDK_STRING("LenSP, RefWidth, RefHeight and SearchPath will be ignored.\n"));
         params.encodeCtrl.LenSP = params.encodeCtrl.SearchPath = params.encodeCtrl.RefWidth =
-            params.encodeCtrl.RefHeight = params.encodeCtrl.AdaptiveSearch = 0;
+            params.encodeCtrl.RefHeight = 0;
     }
     else if (!params.encodeCtrl.SearchWindow && (!params.encodeCtrl.LenSP || !params.encodeCtrl.RefWidth || !params.encodeCtrl.RefHeight))
     {
@@ -645,6 +689,15 @@ void AdjustOptions(sInputParams& params)
             params.encodeCtrl.RefHeight = 32;
     }
 
+    if (!params.encodeCtrl.SearchWindow && (params.encodeCtrl.RefHeight < 20 || params.encodeCtrl.RefWidth < 20))
+    {
+        msdk_printf(MSDK_STRING("WARNING: Invalid RefWidth/RefHeight value. Adjust to 20 (minimum supported)\n"));
+        if (params.encodeCtrl.RefWidth < 20)
+            params.encodeCtrl.RefWidth = 20;
+        if (params.encodeCtrl.RefHeight < 20)
+            params.encodeCtrl.RefHeight = 20;
+    }
+
     if (params.encodeCtrl.MVPredictor == 0 && (params.bPREENC || 0 != msdk_strlen(params.mvpInFile)))
     {
         msdk_printf(MSDK_STRING("WARNING: MV predictor block size is invalid or unspecified. Adjust to 1 for PreENC (7 for -mvpin)\n"));
@@ -652,6 +705,12 @@ void AdjustOptions(sInputParams& params)
             params.encodeCtrl.MVPredictor = 1;
         if (0 != msdk_strlen(params.mvpInFile))
             params.encodeCtrl.MVPredictor = 7;
+    }
+
+    if (params.bPREENC && (!params.preencCtrl.SearchWindow || params.preencCtrl.SearchWindow > 5))
+    {
+        msdk_printf(MSDK_STRING("WARNING: Invalid SearchWindow for PreENC - setting to default value 5\n"));
+        params.preencCtrl.SearchWindow = 5;
     }
 
     if (!params.bPREENC && 0 == msdk_strlen(params.mvpInFile))
@@ -664,6 +723,29 @@ void AdjustOptions(sInputParams& params)
             params.encodeCtrl.NumMvPredictors[0] = 0;
             params.encodeCtrl.NumMvPredictors[1] = 0;
         }
+    }
+
+    if (!params.bENCODE && (strlen(params.repackctrlFile)||strlen(params.repackstatFile)))
+    {
+        msdk_printf(MSDK_STRING("WARNING: Repackctrl/Repackstat disabled for only supported in ENCODE!\n"));
+        MSDK_ZERO_MEMORY(params.repackctrlFile);
+        MSDK_ZERO_MEMORY(params.repackstatFile);
+    }
+
+    if (strlen(params.repackctrlFile) && !params.bEncodedOrder)
+    {
+        msdk_printf(MSDK_STRING("WARNING: Encoded order is enabled by force in repackctrl.\n"));
+        params.bEncodedOrder = true;
+    }
+
+    if (!params.bExtBRC && params.TargetKbps) {
+        msdk_printf(MSDK_STRING("WARNING: Target bitrate is ignored as external BRC is disabled\n"));
+        params.TargetKbps = 0;
+    }
+
+    if (!params.bExtBRC && !params.QP) {
+        msdk_printf(MSDK_STRING("WARNING: QP is not specified. Adjust to 26 (default)\n"));
+        params.QP = 26;
     }
 }
 

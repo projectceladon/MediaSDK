@@ -1,4 +1,4 @@
-# Copyright (c) 2017 Intel Corporation
+# Copyright (c) 2017-2018 Intel Corporation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-if( API_USE_LATEST )
+if(API_VERSION VERSION_LESS "1.27")
+  message("Skipping HEVC FEI plugin due to API restriction")
+else()
 
 set(MFX_ORIG_LDFLAGS "${MFX_LDFLAGS}" )
 
@@ -45,7 +47,6 @@ if( Linux OR Darwin )
     )
   string( SUBSTRING ${hevc_version} 0 1 ver )
 
-  set(HEVCE_HW_version_defs  "-DMFX_PLUGIN_FILE_VERSION=\"\\\"${ver}${cur_date}\"\\\" -DMFX_PLUGIN_PRODUCT_VERSION=\"\\\"${hevc_version}\"\\\"")
   set(HEVCE_FEI_HW_version_defs  "-DMFX_PLUGIN_FILE_VERSION=\"\\\"${ver}${cur_date}\"\\\" -DMFX_PLUGIN_PRODUCT_VERSION=\"\\\"${hevc_version}\"\\\"")
 endif( )
 
@@ -55,59 +56,34 @@ mfx_include_dirs( )
 
 set(MFX_ROOTDIR "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
-include_directories( ${MFX_ROOTDIR}/shared/include )
-include_directories( ${MFX_ROOTDIR}/mfx_lib/plugin/include )
-include_directories( ${MFX_ROOTDIR}/mfx_lib/scheduler/include )
-include_directories( ${MFX_ROOTDIR}/mfx_lib/cmrt_cross_platform/include )
-#include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/genx/include )
-#include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/genx/src )
-
-# =============================================================================
-
-set( sources "" )
-set( sources.plus "" )
-
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/../hevce_hw/h265/include )
-
-foreach( dir ${CMAKE_CURRENT_SOURCE_DIR}/../hevce_hw/h265/src )
-  file( GLOB_RECURSE srcs "${dir}/*.c" "${dir}/*.cpp" )
-  list( APPEND sources ${srcs})
-endforeach()
-
-
-set( defs "-DMFX_PLUGIN_PRODUCT_NAME=\"\\\"${HEVCE_HW_PRODUCT_NAME}\"\\\" -DMFX_FILE_DESCRIPTION=\"\\\"${HEVCE_HW_DESCRIPTION}\"\\\" ${HEVCE_HW_version_defs}" )
-
-set( defs " -DAS_HEVCE_PLUGIN ${WARNING_FLAGS} ${defs}" )
-make_library( mfx_hevce_lib hw static )
-
-set( defs "" )
-
-# =============================================================================
-
-#shared lib
 set( sources "" )
 set( sources.plus "" )
 
 set( USE_STRICT_NAME TRUE )
 set(MFX_LDFLAGS "${MFX_ORIG_LDFLAGS} -Wl,--version-script=${MFX_ROOTDIR}/mfx_lib/plugin/libmfxsw_plugin.map" )
 
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/../hevce_hw/h265/include )
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/h265_fei/include )
+include_directories( ${MFX_ROOTDIR}/shared/include )
+include_directories( ${MFX_ROOTDIR}/mfx_lib/encode_hw/h265/include )
+include_directories( ${MFX_ROOTDIR}/mfx_lib/plugin/include )
+include_directories( ${MFX_ROOTDIR}/mfx_lib/scheduler/include )
+include_directories( ${MFX_ROOTDIR}/mfx_lib/cmrt_cross_platform/include )
 
-foreach( dir ${CMAKE_CURRENT_SOURCE_DIR}/h265_fei/src )
-  file( GLOB_RECURSE srcs "${dir}/*.c" "${dir}/*.cpp" )
-  list( APPEND sources ${srcs})
+foreach( dir
+  ${CMAKE_CURRENT_SOURCE_DIR}/h265_fei/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/../mfx_lib/encode_hw/h265/src )
+    file( GLOB_RECURSE srcs "${dir}/*.c" "${dir}/*.cpp" )
+    list( APPEND sources ${srcs})
 endforeach()
 
   set( LIBS "" )
   list( APPEND LIBS
-    mfx_hevce_lib_hw
     mfx_common_hw
     umc
     vm
     vm_plus
-    ${ITT_LIBS}
+    mfx_trace
+    ${ITT_LIBRARIES}
     pthread
     dl
   )
@@ -116,8 +92,8 @@ set( defs "-DMFX_PLUGIN_PRODUCT_NAME=\"\\\"${HEVC_FEI_HW_PRODUCT_NAME}\"\\\" -DM
 
 gen_plugins_cfg("HEVC_Encoder_HW" ${HEVC_FEI_Encoder_HW_GUID} "mfx_hevc_fei_hw64" "02" "HEVC")
 
-set( defs " -DAS_HEVCE_PLUGIN -DAS_HEVC_FEI_ENCODE_PLUGIN ${WARNING_FLAGS} ${defs}" )
+set( defs "-DAS_HEVC_FEI_ENCODE_PLUGIN ${defs}" )
 make_library( mfx_hevc_fei_hw64 hw shared )
 msdk_install( mfx_hevc_fei_hw64 ${MFX_PLUGINS_DIR} )
 set( defs "" )
-endif( API_USE_LATEST )
+endif( )

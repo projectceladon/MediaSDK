@@ -6,10 +6,10 @@ include $(MFX_HOME)/android/mfx_defs.mk
 LOCAL_SRC_FILES := $(addprefix src/, $(notdir $(wildcard $(LOCAL_PATH)/src/*.cpp)))
 
 LOCAL_C_INCLUDES := \
-    $(MFX_C_INCLUDES_INTERNAL_HW) \
+    $(MFX_INCLUDES_INTERNAL_HW) \
     $(MFX_HOME)/api/mediasdk_structures
 
-LOCAL_CFLAGS := $(MFX_CFLAGS_INTERNAL)
+LOCAL_CFLAGS := $(MFX_CFLAGS_INTERNAL_HW)
 LOCAL_CFLAGS_32 := $(MFX_CFLAGS_INTERNAL_32)
 LOCAL_CFLAGS_64 := $(MFX_CFLAGS_INTERNAL_64)
 

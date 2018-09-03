@@ -51,7 +51,7 @@ CEncodingPipeline::CEncodingPipeline(AppConfig* pAppConfig)
 #endif
     , m_frameOrderIdrInDisplayOrder(0)
     , m_frameType((mfxU8)MFX_FRAMETYPE_UNKNOWN, (mfxU8)MFX_FRAMETYPE_UNKNOWN)
-
+    , m_commonFrameInfo()
     , m_preencBufs(m_numOfFields)
     , m_encodeBufs(m_numOfFields)
 
@@ -64,6 +64,7 @@ CEncodingPipeline::CEncodingPipeline(AppConfig* pAppConfig)
     , m_insertIDR(false)
     , m_bVPPneeded(pAppConfig->bVPP)
     , m_bSeparatePreENCSession(pAppConfig->bPREENC && (pAppConfig->bENCPAK || pAppConfig->bOnlyENC || (pAppConfig->preencDSstrength && m_bVPPneeded)))
+    , m_mfxSessionParent((mfxSession)0)
     , m_pPreencSession(m_bSeparatePreENCSession ? &m_preenc_mfxSession : &m_mfxSession)
 
     , m_pFEI_PreENC(NULL)
@@ -78,6 +79,7 @@ CEncodingPipeline::CEncodingPipeline(AppConfig* pAppConfig)
     , m_bUseHWmemory(pAppConfig->bUseHWmemory) //only HW memory is supported (ENCODE supports SW memory)
     , m_bExternalAlloc(pAppConfig->bUseHWmemory)
     , m_bParametersAdjusted(false)
+    , m_bRecoverDeviceFailWithInputReset(true)
     , m_hwdev(NULL)
 
     , m_surfPoolStrategy((pAppConfig->nReconSurf || pAppConfig->nInputSurf) ? PREFER_NEW : PREFER_FIRST_FREE)
@@ -87,13 +89,13 @@ CEncodingPipeline::CEncodingPipeline(AppConfig* pAppConfig)
     , m_EncSurfaces(m_surfPoolStrategy)
     , m_ReconSurfaces(m_surfPoolStrategy)
 
+    , m_DecResponse()
+    , m_VppResponse()
+    , m_dsResponse()
+    , m_EncResponse()
+    , m_ReconResponse()
     , m_BaseAllocID(0)
 {
-    MSDK_ZERO_MEMORY(m_commonFrameInfo);
-
-    MSDK_ZERO_MEMORY(m_DecResponse);
-    MSDK_ZERO_MEMORY(m_EncResponse);
-
     m_appCfg.PipelineCfg.mixedPicstructs = m_appCfg.nPicStruct == MFX_PICSTRUCT_UNKNOWN;
 }
 
@@ -201,6 +203,7 @@ mfxStatus CEncodingPipeline::Init(mfxSession parentSession)
         sts = m_pFEI_ENCPAK->FillParameters();
         MSDK_CHECK_STATUS(sts, "ENCPAK: Parameters initialization failed");
         m_commonFrameInfo = m_pFEI_ENCPAK->GetCommonVideoParams()->mfx.FrameInfo;
+        sts = m_pFEI_ENCPAK->SetFrameAllocator(m_pMFXAllocator);
     }
 
 #if (MFX_VERSION >= 1024)
@@ -242,6 +245,16 @@ mfxStatus CEncodingPipeline::Init(mfxSession parentSession)
 mfxStatus CEncodingPipeline::ResetMFXComponents()
 {
     mfxStatus sts = MFX_ERR_NONE;
+
+    if (m_bRecoverDeviceFailWithInputReset)
+    {
+        sts = ResetIOFiles();
+        MSDK_CHECK_STATUS(sts, "ResetIOFiles failed");
+
+        // Reset state indexes
+        m_frameCount = 0;
+        m_nDRC_idx   = 0;
+    }
 
     if (m_pYUVReader)
     {
@@ -351,6 +364,9 @@ mfxStatus CEncodingPipeline::ResetMFXComponents()
         m_bParametersAdjusted |= sts == MFX_WRN_INCOMPATIBLE_VIDEO_PARAM;
         MSDK_CHECK_STATUS(sts, "FEI ENCPAK: Init failed");
     }
+
+    // Mark all buffers as vacant without reallocation
+    ResetExtBuffers();
 
     return sts;
 }
@@ -715,6 +731,15 @@ void CEncodingPipeline::ReleaseResources()
     ClearDecoderBuffers();
 }
 
+void CEncodingPipeline::ResetExtBuffers()
+{
+    m_inputTasks.Clear();
+    m_preencBufs.UnlockAll();
+    m_encodeBufs.UnlockAll();
+
+    m_pExtBufDecodeStreamout = nullptr;
+}
+
 void CEncodingPipeline::DeleteHWDevice()
 {
     MSDK_SAFE_DELETE(m_hwdev);
@@ -729,7 +754,7 @@ void CEncodingPipeline::DeleteAllocator()
     DeleteHWDevice();
 }
 
-mfxStatus CEncodingPipeline::ResetIOFiles(const AppConfig & Config)
+mfxStatus CEncodingPipeline::ResetIOFiles()
 {
     mfxStatus sts = MFX_ERR_NONE;
 
@@ -843,6 +868,7 @@ mfxStatus CEncodingPipeline::SetSequenceParameters()
         m_appCfg.NumMVPredictors_Bl1 : (std::min)(mfxU16(m_numRefFrame*m_numOfFields), MaxFeiEncMVPNum);
 
     m_taskInitializationParams.BRefType           = m_bRefType;
+    m_taskInitializationParams.NoPRefB            = m_appCfg.bNoPtoBref;
 
     /* Section below calculates number of macroblocks for extension buffers allocation */
 
@@ -1580,7 +1606,7 @@ mfxStatus CEncodingPipeline::Run()
         if (sts == MFX_ERR_MORE_DATA && m_appCfg.nTimeout) // New cycle in loop mode
         {
             m_insertIDR = true;
-            sts = ResetIOFiles(m_appCfg);
+            sts = ResetIOFiles();
             MSDK_CHECK_STATUS(sts, "ResetIOFiles failed");
             continue;
         }

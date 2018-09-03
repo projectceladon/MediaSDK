@@ -1,15 +1,15 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -41,7 +41,9 @@
 #include "umc_structures.h"
 #include "umc_dynamic_cast.h"
 
+#ifdef _MSVC_LANG
 #pragma warning(disable : 4201)
+#endif
 
 #include <va/va.h>
 #include <va/va_dec_vp8.h>
@@ -96,9 +98,10 @@ enum VideoAccelerationProfile
     VA_VLD          = 0x00400,
 
     VA_PROFILE                  = 0xff000,
-
-    //profile amendments
+    VA_PROFILE_422              = 0x0a000,
+    VA_PROFILE_444              = 0x0b000,
     VA_PROFILE_10               = 0x10000,
+    VA_PROFILE_REXT             = 0x20000,
 
     // configurations
     VA_CONFIGURATION            = 0x0ff00000,
@@ -114,6 +117,14 @@ enum VideoAccelerationProfile
     VP8_VLD         = VA_VP8 | VA_VLD,
     HEVC_VLD        = VA_H265 | VA_VLD,
     VP9_VLD         = VA_VP9 | VA_VLD,
+
+    H265_VLD_REXT               = VA_H265 | VA_VLD | VA_PROFILE_REXT,
+    H265_10_VLD_REXT            = VA_H265 | VA_VLD | VA_PROFILE_REXT | VA_PROFILE_10,
+    H265_10_VLD                 = VA_H265 | VA_VLD | VA_PROFILE_10,
+    H265_VLD_422                = VA_H265 | VA_VLD | VA_PROFILE_REXT | VA_PROFILE_422,
+    H265_VLD_444                = VA_H265 | VA_VLD | VA_PROFILE_REXT | VA_PROFILE_444,
+    H265_10_VLD_422             = VA_H265 | VA_VLD | VA_PROFILE_REXT | VA_PROFILE_10 | VA_PROFILE_422,
+    H265_10_VLD_444             = VA_H265 | VA_VLD | VA_PROFILE_REXT | VA_PROFILE_10 | VA_PROFILE_444,
 
 };
 
@@ -303,6 +314,8 @@ protected:
 
 #endif // __cplusplus
 
+#ifdef _MSVC_LANG
 #pragma warning(default : 4201)
+#endif
 
 #endif // __UMC_VA_BASE_H__
