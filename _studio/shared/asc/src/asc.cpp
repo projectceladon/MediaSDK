@@ -77,6 +77,11 @@ ASC_API ASCimageData::ASCimageData() {
     CsVal = 0;
     RsVal = 0;
     avgval = 0;
+    var = 0;
+    jtvar = 0;
+    mcjtvar = 0;
+    tcor = 0;
+    mcTcor = 0;
 }
 
 mfxStatus ASCimageData::InitFrame(ASCImDetails *pDetails) {
@@ -257,6 +262,7 @@ bool ASC::Query_ASCCmDevice() {
 }
 
 mfxStatus ASC::InitGPUsurf(CmDevice* pCmDevice) {
+#ifdef MFX_ENABLE_KERNELS
     INT res = CM_SUCCESS;
     m_subSamplingEv = nullptr;
     m_frameCopyEv   = nullptr;
@@ -284,6 +290,8 @@ mfxStatus ASC::InitGPUsurf(CmDevice* pCmDevice) {
         break;
     case PLATFORM_INTEL_SKL:
     case PLATFORM_INTEL_KBL:
+    case PLATFORM_INTEL_CFL:
+    case PLATFORM_INTEL_GLK:
         res = m_device->LoadProgram((void *)genx_scd_skl, sizeof(genx_scd_skl), m_program, "nojitter");
         break;
     case PLATFORM_INTEL_BXT:
@@ -295,6 +303,10 @@ mfxStatus ASC::InitGPUsurf(CmDevice* pCmDevice) {
     SCD_CHECK_CM_ERR(res, MFX_ERR_DEVICE_FAILED);
 
     return MFX_ERR_NONE;
+#else
+    (void)pCmDevice;
+    return MFX_ERR_UNSUPPORTED;
+#endif
 }
 
 void ASC::Params_Init() {
@@ -685,6 +697,8 @@ ASC_API mfxStatus ASC::Init(mfxI32 Width, mfxI32 Height, mfxI32 Pitch, mfxU32 Pi
     {
         m_dataIn->layer = new ASCImDetails;
         m_videoData = new ASCVidSample *[ASCVIDEOSTATSBUF];
+        for(mfxU8 i =0; i < ASCVIDEOSTATSBUF; i++)
+            m_videoData[i] = nullptr;
         m_support = new ASCVidRead;
     }
     catch (...)
@@ -982,6 +996,9 @@ void ASC::MotionAnalysis(ASCVidSample *videoIn, ASCVidSample *videoRef, mfxU32 *
         referenceImageIn = &m_support->gainCorrection;
     }
     m_support->average = 0;
+    videoIn->layer.var = 0;
+    videoIn->layer.jtvar = 0;
+    videoIn->layer.mcjtvar = 0;
     for (mfxU16 i = 0; i < m_dataIn->layer[lyrIdx].Height_in_blocks; i++) {
         mfxU16 prevFPos = i << 4;
         for (mfxU16 j = 0; j < m_dataIn->layer[lyrIdx].Width_in_blocks; j++) {
@@ -995,6 +1012,26 @@ void ASC::MotionAnalysis(ASCVidSample *videoIn, ASCVidSample *videoRef, mfxU32 *
             *AbsMVSize += (videoIn->layer.pInteger[fPos].x * videoIn->layer.pInteger[fPos].x) + (videoIn->layer.pInteger[fPos].y * videoIn->layer.pInteger[fPos].y);
 
         }
+    }
+    videoIn->layer.var = videoIn->layer.var * 10 / 128 / 64;
+    videoIn->layer.jtvar = videoIn->layer.jtvar * 10 / 128 / 64;
+    videoIn->layer.mcjtvar = videoIn->layer.mcjtvar * 10 / 128 / 64;
+    if (videoIn->layer.var == 0)
+    {
+        if (videoIn->layer.jtvar == 0)
+            videoIn->layer.tcor = 100;
+        else
+            videoIn->layer.tcor = (mfxI16)NMIN(1000 * videoIn->layer.jtvar, 2000);
+
+        if (videoIn->layer.mcjtvar == 0)
+            videoIn->layer.mcTcor = 100;
+        else
+            videoIn->layer.mcTcor = (mfxI16)NMIN(1000 * videoIn->layer.mcjtvar, 2000);
+    }
+    else
+    {
+        videoIn->layer.tcor = (mfxI16)(100 * videoIn->layer.jtvar / videoIn->layer.var);
+        videoIn->layer.mcTcor = (mfxI16)(100 * videoIn->layer.mcjtvar / videoIn->layer.var);
     }
     *TSC = valb >> 8;
     *AFD = (mfxU16)(acc >> 13);//Picture area is 2^13, and 10 have been done before so it needs to shift 3 more.
@@ -1095,6 +1132,8 @@ void ASC::DetectShotChangeFrame() {
         m_support->logic[ASCcurrent_frame_data]->MVdiffVal          = 0;
         m_support->logic[ASCcurrent_frame_data]->RsCsDiff           = 0;
         m_support->logic[ASCcurrent_frame_data]->last_shot_distance = 0;
+        m_support->logic[ASCcurrent_frame_data]->tcor               = 0;
+        m_support->logic[ASCcurrent_frame_data]->mcTcor             = 0;
         m_support->firstFrame = false;
     }
     else {
@@ -1105,6 +1144,8 @@ void ASC::DetectShotChangeFrame() {
         m_support->logic[ASCcurrent_frame_data]->pdist    = m_support->PDistanceTable[(m_support->logic[ASCcurrent_frame_data]->TSCindex * NumSC) +
                                                           m_support->logic[ASCcurrent_frame_data]->SCindex];
         m_support->logic[ASCcurrent_frame_data]->TSC >>= 5;
+        m_support->logic[ASCcurrent_frame_data]->tcor = m_videoData[ASCCurrent_Frame]->layer.tcor;
+        m_support->logic[ASCcurrent_frame_data]->mcTcor = m_videoData[ASCCurrent_Frame]->layer.mcTcor;
         /*------Shot Detection------*/
         m_support->logic[ASCcurrent_frame_data]->Schg = ShotDetect(m_videoData[ASCCurrent_Frame]->layer, m_videoData[ASCReference_Frame]->layer, *m_dataIn->layer, m_support->logic[ASCcurrent_frame_data], m_support->logic[ASCprevious_frame_data], m_support->control);
         m_support->logic[ASCprevious_frame_data]->lastFrameInShot = (mfxU8)m_support->logic[ASCcurrent_frame_data]->Schg;

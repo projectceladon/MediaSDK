@@ -1,15 +1,15 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -511,12 +511,9 @@ mfxStatus ResMngr::Init(
 
 mfxStatus ResMngr::DoAdvGfx(
     mfxFrameSurface1 *input,
-    mfxFrameSurface1 *output,
+    mfxFrameSurface1 * /*output*/,
     mfxStatus *intSts)
 {
-    input;
-    output;
-
     assert( m_inputIndex  <=  m_inputIndexCount);
     assert( m_outputIndex <   m_outputIndexCountPerCycle);
 
@@ -623,13 +620,9 @@ mfxStatus ResMngr::DoAdvGfx(
  */
 mfxStatus ResMngr::DoMode30i60p(
     mfxFrameSurface1 *input,
-    mfxFrameSurface1 *output,
+    mfxFrameSurface1 * /*output*/,
     mfxStatus *intSts)
 {
-    input;
-    output;
-
-
     if( m_bOutputReady )// MARKER: output is ready, new out surface is need only
     {
          m_inputIndex++;
@@ -844,15 +837,13 @@ ReleaseResource* ResMngr::CreateSubResourceForMode30i60p(void)
 /// Sets up reference, current input and corresponding timeStamp
 mfxStatus ResMngr::FillTaskForMode30i60p(
     DdiTask* pTask,
-    mfxFrameSurface1 *pInSurface,
+    mfxFrameSurface1 * /*pInSurface*/,
     mfxFrameSurface1 *pOutSurface
 #ifdef MFX_ENABLE_MCTF
     , mfxFrameSurface1 * pOutSurfaceForApp
 #endif
 )
 {
-    pInSurface;
-
     mfxU32 refIndx = 0;
     pTask->bEOS = m_EOS;
     // bkwd
@@ -967,14 +958,13 @@ mfxStatus ResMngr::FillTaskForMode30i60p(
 
 mfxStatus ResMngr::FillTask(
     DdiTask* pTask,
-    mfxFrameSurface1 *pInSurface,
+    mfxFrameSurface1 * /*pInSurface*/,
     mfxFrameSurface1 *pOutSurface
 #ifdef MFX_ENABLE_MCTF
     , mfxFrameSurface1 * pOutSurfaceForApp
 #endif
 )
 {
-    pInSurface;
     mfxU32 refIndx = 0;
 
     // bkwd
@@ -1867,7 +1857,7 @@ VideoVPPHW::VideoVPPHW(IOMode mode, VideoCORE *core)
     m_config.m_bMode30i60pEnable = false;
     m_config.m_bWeave = false;
     m_config.m_extConfig.mode  = FRC_DISABLED;
-    m_config.m_bPassThroughEnable = false;
+    m_config.m_bCopyPassThroughEnable = false;
     m_config.m_surfCount[VPP_IN]   = 1;
     m_config.m_surfCount[VPP_OUT]  = 1;
     m_config.m_IOPattern = 0;
@@ -2065,7 +2055,7 @@ mfxStatus VideoVPPHW::Query(VideoCORE *core, mfxVideoParam *par)
     mfxStatus sts = MFX_ERR_NONE;
     VPPHWResMng *vpp_ddi = 0;
     mfxVideoParam params = *par;
-    Config config = {0};
+    Config config = {};
     MfxHwVideoProcessing::mfxExecuteParams executeParams;
 
     sts = CheckIOMode(par, ALL);
@@ -2094,11 +2084,10 @@ mfxStatus VideoVPPHW::Query(VideoCORE *core, mfxVideoParam *par)
 
 mfxStatus  VideoVPPHW::Init(
     mfxVideoParam *par,
-    bool isTemporal)
+    bool /*isTemporal*/)
 {
     mfxStatus sts = MFX_ERR_NONE;
     bool bIsFilterSkipped = false;
-    isTemporal;
 
     m_frame_num = 0;
     m_critical_error = MFX_ERR_NONE;
@@ -2138,14 +2127,14 @@ mfxStatus  VideoVPPHW::Init(
     if( pHint )
     {
         /* Multi-view processing needs separate devices for each view. Using one device is not possible since
-         * bakward/forward references from different views will be messed up. Thus each VPPHW instance needs to
+         * backward/forward references from different views will be messed up. Thus each VPPHW instance needs to
          * create its own device. Core is not able to handle this like it does for single view case.
          */
         try
         {
             m_ddi = new VPPHWResMng();
         }
-        catch(std::bad_alloc)
+        catch(std::bad_alloc&)
         {
             return MFX_WRN_PARTIAL_ACCELERATION;
         }
@@ -2271,6 +2260,7 @@ mfxStatus  VideoVPPHW::Init(
             eMFXHWType m_platform = m_pCore->GetHWType();
             switch (m_platform)
             {
+#ifdef MFX_ENABLE_KERNELS
             case MFX_HW_BDW:
             case MFX_HW_CHT:
                 res = m_pCmDevice->LoadProgram((void*)genx_fcopy_gen8,sizeof(genx_fcopy_gen8),m_pCmProgram,"nojitter");
@@ -2281,6 +2271,16 @@ mfxStatus  VideoVPPHW::Init(
             case MFX_HW_CFL:
                 res = m_pCmDevice->LoadProgram((void*)genx_fcopy_gen9,sizeof(genx_fcopy_gen9),m_pCmProgram,"nojitter");
                 break;
+            case MFX_HW_CNL:
+                res = m_pCmDevice->LoadProgram((void*)genx_fcopy_gen10,sizeof(genx_fcopy_gen10),m_pCmProgram,"nojitter");
+                break;
+            case MFX_HW_ICL:
+                res = m_pCmDevice->LoadProgram((void*)genx_fcopy_gen11,sizeof(genx_fcopy_gen11),m_pCmProgram,"nojitter");
+                break;
+            case MFX_HW_ICL_LP:
+                res = m_pCmDevice->LoadProgram((void*)genx_fcopy_gen11lp,sizeof(genx_fcopy_gen11lp),m_pCmProgram,"nojitter");
+                break;
+#endif
             default:
                 res = CM_FAILURE;
                 break;
@@ -2560,7 +2560,7 @@ mfxStatus VideoVPPHW::QueryCaps(VideoCORE* core, MfxHwVideoProcessing::mfxVppCap
 
     VPPHWResMng* ddi = 0;
     mfxStatus sts = MFX_ERR_NONE;
-    mfxVideoParam tmpPar = {0};
+    mfxVideoParam tmpPar = {};
 
     sts = core->CreateVideoProcessing(&tmpPar);
     MFX_CHECK_STS( sts );
@@ -2607,7 +2607,7 @@ mfxStatus VideoVPPHW::QueryIOSurf(
     sts = CheckIOMode(par, ioMode);
     MFX_CHECK_STS(sts);
 
-    mfxVideoParam tmpPar = {0};
+    mfxVideoParam tmpPar = {};
     sts = core->CreateVideoProcessing(&tmpPar);
     MFX_CHECK_STS(sts);
 
@@ -2672,6 +2672,20 @@ mfxStatus VideoVPPHW::Reset(mfxVideoParam *par)
     if ( fabs(inFrameRateCur / outFrameRateCur - inFrameRate / outFrameRate) > std::numeric_limits<mfxF64>::epsilon() )
         return MFX_ERR_INCOMPATIBLE_VIDEO_PARAM; // Frame Rate ratio check
 
+#if (MFX_VERSION >= 1027)
+    eMFXPlatform platform = m_pCore->GetPlatformType();
+    if (platform == MFX_PLATFORM_HARDWARE)
+    {
+        eMFXHWType type = m_pCore->GetHWType();
+        if (type < MFX_HW_ICL &&
+           (par->vpp.In.FourCC   == MFX_FOURCC_Y210 ||
+            par->vpp.In.FourCC   == MFX_FOURCC_Y410 ||
+            par->vpp.Out.FourCC  == MFX_FOURCC_Y210 ||
+            par->vpp.Out.FourCC  == MFX_FOURCC_Y410))
+            return MFX_ERR_INVALID_VIDEO_PARAM;
+
+    }
+#endif
 
     if (m_params.vpp.In.FourCC  != par->vpp.In.FourCC ||
         m_params.vpp.Out.FourCC != par->vpp.Out.FourCC)
@@ -2856,7 +2870,7 @@ mfxStatus VideoVPPHW::Close()
     m_config.m_extConfig.mode  = FRC_DISABLED;
     m_config.m_bMode30i60pEnable  = false;
     m_config.m_bRefFrameEnable = false;
-    m_config.m_bPassThroughEnable = false;
+    m_config.m_bCopyPassThroughEnable = false;
     m_config.m_surfCount[VPP_IN]  = 1;
     m_config.m_surfCount[VPP_OUT] = 1;
 
@@ -2944,7 +2958,7 @@ mfxStatus VideoVPPHW::VppFrameCheck(
 {
     UMC::AutomaticUMCMutex guard(m_guard);
 
-    pEntryPoint= pEntryPoint;
+    (void)pEntryPoint;
     mfxStatus sts;
     mfxStatus intSts = MFX_ERR_NONE;
 
@@ -3094,8 +3108,8 @@ mfxStatus VideoVPPHW::VppFrameCheck(
         // submit task
         SyncTaskSubmission(pTask);
 
-        if (false == m_config.m_bPassThroughEnable ||
-            (true == m_config.m_bPassThroughEnable && true == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf)))
+        if (false == m_config.m_bCopyPassThroughEnable ||
+            (true == m_config.m_bCopyPassThroughEnable && true == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf)))
         {
             // configure entry point
             pEntryPoint[0].pRoutine = VideoVPPHW::QueryTaskRoutine;
@@ -3109,8 +3123,8 @@ mfxStatus VideoVPPHW::VppFrameCheck(
     }
     else
     {
-        if (false == m_config.m_bPassThroughEnable ||
-            (true == m_config.m_bPassThroughEnable && true == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf)))
+        if (false == m_config.m_bCopyPassThroughEnable ||
+            (true == m_config.m_bCopyPassThroughEnable && true == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf)))
         {
             // configure entry point
             pEntryPoint[1].pRoutine = VideoVPPHW::QueryTaskRoutine;
@@ -3411,7 +3425,7 @@ mfxStatus VideoVPPHW::PostWorkOutSurfaceCopy(ExtSurface & output)
                 dstTempSurface.Data.MemId = 0;
             }
 
-            mfxI64 verticalPitch = (mfxI64)(dstTempSurface.Data.UV - dstTempSurface.Data.Y);
+            mfxI64 verticalPitch = (mfxI64)dstTempSurface.Data.UV - (mfxI64)dstTempSurface.Data.Y;
             verticalPitch = (verticalPitch % dstTempSurface.Data.Pitch)? 0 : verticalPitch / dstTempSurface.Data.Pitch;
             mfxU32 dstPitch = dstTempSurface.Data.PitchLow + ((mfxU32)dstTempSurface.Data.PitchHigh << 16);
 
@@ -3732,7 +3746,7 @@ mfxStatus VideoVPPHW::SyncTaskSubmission(DdiTask* pTask)
 #ifdef MFX_ENABLE_MCTF
     if (pTask->outputForApp.pSurf)
     {
-        if (true == m_config.m_bPassThroughEnable &&
+        if (true == m_config.m_bCopyPassThroughEnable &&
             false == IsRoiDifferent(pTask->input.pSurf, pTask->outputForApp.pSurf))
         {
             sts = CopyPassThrough(pTask->input.pSurf, pTask->outputForApp.pSurf);
@@ -3749,7 +3763,7 @@ mfxStatus VideoVPPHW::SyncTaskSubmission(DdiTask* pTask)
             return MFX_ERR_UNDEFINED_BEHAVIOR;
     }
 #else
-    if (true == m_config.m_bPassThroughEnable &&
+    if (true == m_config.m_bCopyPassThroughEnable &&
         false == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf))
     {
         sts = CopyPassThrough(pTask->input.pSurf, pTask->output.pSurf);
@@ -4016,8 +4030,6 @@ mfxStatus VideoVPPHW::SyncTaskSubmission(DdiTask* pTask)
      */
     if (MFX_DEINTERLACING_ADVANCED_SCD == m_executeParams.iDeinterlacingAlgorithm)
     {
-        BOOL analysisReady = false;
-
         mfxU32 scene_change = 0;
         mfxU32 sc_in_first_field = 0;
         mfxU32 sc_in_second_field = 0;
@@ -4196,7 +4208,6 @@ mfxStatus VideoVPPHW::SyncTaskSubmission(DdiTask* pTask)
     deinterlaceAlgorithm = m_executeParams.iDeinterlacingAlgorithm;
     FMDEnable = m_executeParams.bFMDEnable;
 
-    static mfxU32 num_progressive = 0;
     mfxU32 currFramePicStruct = m_executeSurf[pTask->bkwdRefCount].frameInfo.PicStruct;
     mfxU32 refFramePicStruct = m_executeSurf[0].frameInfo.PicStruct;
     bool isFirstField = true;
@@ -4326,8 +4337,8 @@ mfxStatus VideoVPPHW::AsyncTaskSubmission(void *pState, void *pParam, mfxU32 thr
     mfxStatus sts;
 
     // touch unreferenced parameters(s)
-    threadNumber = threadNumber;
-    callNumber = callNumber;
+    (void)threadNumber;
+    (void)callNumber;
 
 #ifdef MFX_ENABLE_MCTF
     VideoVPPHW *pHwVpp = (VideoVPPHW *)pState;
@@ -4349,8 +4360,8 @@ mfxStatus VideoVPPHW::QueryTaskRoutine(void *pState, void *pParam, mfxU32 thread
     MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_API, "VideoVPPHW::QueryTaskRoutine");
     mfxStatus sts = MFX_ERR_NONE;
 
-    threadNumber = threadNumber;
-    callNumber   = callNumber;
+    (void)threadNumber;
+    (void)callNumber;
 
     VideoVPPHW *pHwVpp = (VideoVPPHW *) pState;
     DdiTask *pTask     = (DdiTask*) pParam;
@@ -4535,6 +4546,8 @@ mfxStatus VideoVPPHW::SubmitToMctf(void *pState, void *pParam, bool* bMctfReadyT
 }
 mfxStatus VideoVPPHW::QueryFromMctf(void *pState, void *pParam, bool bMctfReadyToReturn, bool bEoF)
 {
+    (void)bEoF;
+
     MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_API, "VideoVPPHW::SubmitToMctf");
     mfxStatus sts = MFX_ERR_NONE;
 
@@ -4785,6 +4798,10 @@ mfxStatus ValidateParams(mfxVideoParam *par, mfxVppCaps *caps, VideoCORE *core, 
 
     /* 6. BitDepthLuma and BitDepthChroma should be configured for p010 format */
     if (MFX_FOURCC_P010 == par->vpp.In.FourCC
+#if (MFX_VERSION >= 1027)
+        || par->vpp.In.FourCC == MFX_FOURCC_Y210
+        || par->vpp.In.FourCC == MFX_FOURCC_Y410
+#endif
         )
     {
         if (0 == par->vpp.In.BitDepthLuma)
@@ -4800,6 +4817,10 @@ mfxStatus ValidateParams(mfxVideoParam *par, mfxVppCaps *caps, VideoCORE *core, 
     }
 
     if (MFX_FOURCC_P010 == par->vpp.Out.FourCC
+#if (MFX_VERSION >= 1027)
+        || par->vpp.Out.FourCC == MFX_FOURCC_Y210
+        || par->vpp.Out.FourCC == MFX_FOURCC_Y410
+#endif
         )
     {
         if (0 == par->vpp.Out.BitDepthLuma)
@@ -5045,8 +5066,10 @@ mfxU64 make_back_color_yuv(mfxU16 bit_depth, mfxU16 Y, mfxU16 U, mfxU16 V)
     VM_ASSERT(bit_depth);
 
     mfxU64 const shift = bit_depth - 8;
+    mfxU64 const max_val = 256 << shift;
+
     return
-        ((mfxU64)                                ((255 << shift) - 1) << 48) |
+        ((mfxU64)                                 (max_val - 1) << 48) |
         ((mfxU64)VPP_RANGE_CLIP(Y, (16 << shift), (235 << shift))     << 32) |
         ((mfxU64)VPP_RANGE_CLIP(U, (16 << shift), (240 << shift))     << 16) |
         ((mfxU64)VPP_RANGE_CLIP(V, (16 << shift), (240 << shift))     <<  0)
@@ -5104,6 +5127,10 @@ mfxStatus ConfigureExecuteParams(
         def_back_color = make_def_back_color_yuv(8);
     }
     else if(videoParam.vpp.Out.FourCC == MFX_FOURCC_P010 ||
+#if (MFX_VERSION >= 1027)
+            videoParam.vpp.Out.FourCC == MFX_FOURCC_Y210 ||
+            videoParam.vpp.Out.FourCC == MFX_FOURCC_Y410 ||
+#endif
             videoParam.vpp.Out.FourCC == MFX_FOURCC_P210)
     {
         def_back_color = make_def_back_color_yuv(10);
@@ -5568,7 +5595,7 @@ mfxStatus ConfigureExecuteParams(
 
                         for (mfxU32 cnt = 0; cnt < StreamCount; ++cnt)
                         {
-                            DstRect rec = {0};
+                            DstRect rec = {};
                             rec.DstX = extComp->InputStream[cnt].DstX;
                             rec.DstY = extComp->InputStream[cnt].DstY;
                             rec.DstW = extComp->InputStream[cnt].DstW;
@@ -5606,6 +5633,10 @@ mfxStatus ConfigureExecuteParams(
                             executeParams.iBackgroundColor = make_back_color_yuv(8, extComp->Y, extComp->U, extComp->V);
                         }
                         if (targetFourCC == MFX_FOURCC_P010 ||
+#if (MFX_VERSION >= 1027)
+                            targetFourCC == MFX_FOURCC_Y210 ||
+                            targetFourCC == MFX_FOURCC_Y410 ||
+#endif
                             targetFourCC == MFX_FOURCC_P210)
                         {
                             executeParams.iBackgroundColor = make_back_color_yuv(10, extComp->Y, extComp->U, extComp->V);
@@ -6016,24 +6047,25 @@ mfxStatus ConfigureExecuteParams(
         executeParams.bSceneDetectionEnable = false;
     }
 
-    if (0 == memcmp(&videoParam.vpp.In, &videoParam.vpp.Out, sizeof(mfxFrameInfo)))
+#if defined(WIN64) || defined (WIN32)
+    if ( (0 == memcmp(&videoParam.vpp.In, &videoParam.vpp.Out, sizeof(mfxFrameInfo))) &&
+         executeParams.IsDoNothing() )
     {
-        if (executeParams.IsDoNothing())
-            config.m_bPassThroughEnable = true;
-        else
-            config.m_bPassThroughEnable = false;
+        config.m_bCopyPassThroughEnable = true;
     }
     else
     {
-        config.m_bPassThroughEnable = false;
+        config.m_bCopyPassThroughEnable = false;// after Reset() parameters may be changed,
+                                            // flag should be disabled
     }
+#endif//m_bCopyPassThroughEnable == false for another OS
 
     if (inDNRatio == outDNRatio && !executeParams.bVarianceEnable && !executeParams.bComposite &&
             !(config.m_extConfig.mode == IS_REFERENCES) )
     {
         // work around
         config.m_extConfig.mode  = FRC_DISABLED;
-        //config.m_bPassThroughEnable = false;
+        //config.m_bCopyPassThroughEnable = false;
     }
 
     if (true == executeParams.bComposite && 0 == executeParams.dstRects.size()) // composition was enabled via DO USE

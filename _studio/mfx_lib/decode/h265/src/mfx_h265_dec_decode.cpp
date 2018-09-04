@@ -1,15 +1,15 @@
-// Copyright (c) 2017 Intel Corporation
-// 
+// Copyright (c) 2017-2018 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -56,9 +56,9 @@ mfxU32 CalculateNumThread(mfxVideoParam *par, eMFXPlatform platform)
 }
 
 inline
-bool IsNeedToUseHWBuffering(eMFXHWType type)
+bool IsNeedToUseHWBuffering(eMFXHWType /*type*/)
 {
-    type;return false;
+    return false;
 }
 
 inline
@@ -282,6 +282,9 @@ mfxStatus VideoDECODEH265::Init(mfxVideoParam *par)
         if (m_platform != MFX_PLATFORM_SOFTWARE)
         {
             if (   par->mfx.FrameInfo.FourCC == MFX_FOURCC_P010
+    #if (MFX_VERSION >= 1027)
+                || par->mfx.FrameInfo.FourCC == MFX_FOURCC_Y210
+    #endif
                 )
 
                 request.Info.Shift = 1;
@@ -602,6 +605,9 @@ mfxStatus VideoDECODEH265::DecodeHeader(VideoCORE *core, mfxBitstream *bs, mfxVi
     if (MFX_Utility::GetPlatform_H265(core, par) != MFX_PLATFORM_SOFTWARE)
     {
         if (   par->mfx.FrameInfo.FourCC == MFX_FOURCC_P010
+#if (MFX_VERSION >= 1027)
+            || par->mfx.FrameInfo.FourCC == MFX_FOURCC_Y210
+#endif
             )
 
             par->mfx.FrameInfo.Shift = 1;
@@ -903,13 +909,12 @@ mfxStatus VideoDECODEH265::DecodeFrameCheck(mfxBitstream *bs,
                 }
             }
 
-            if (!frame && m_pH265VideoDecoder->GetTaskBroker()->IsEnoughForStartDecoding(true) && !m_globalTask)
+            if (!frame)
             {
-                m_globalTask = true;
-            }
-            else
-            {
-                return MFX_WRN_DEVICE_BUSY;
+                if (m_pH265VideoDecoder->GetTaskBroker()->IsEnoughForStartDecoding(true) && !m_globalTask)
+                    m_globalTask = true;
+                else
+                    return MFX_WRN_DEVICE_BUSY;
             }
         }
 
@@ -976,11 +981,6 @@ mfxStatus VideoDECODEH265::DecodeFrameCheck(mfxBitstream *bs, mfxFrameSurface1 *
     sts = m_FrameAllocator->SetCurrentMFXSurface(surface_work, m_isOpaq);
     if (sts != MFX_ERR_NONE)
         return sts;
-
-#ifdef MFX_MAX_DECODE_FRAMES
-    if (m_stat.NumFrame >= MFX_MAX_DECODE_FRAMES)
-        return MFX_ERR_UNDEFINED_BEHAVIOR;
-#endif
 
     sts = MFX_ERR_UNDEFINED_BEHAVIOR;
 
@@ -1211,10 +1211,17 @@ void VideoDECODEH265::FillOutputSurface(mfxFrameSurface1 **surf_out, mfxFrameSur
     case 0:
         surface_out->Info.ChromaFormat = MFX_CHROMAFORMAT_YUV400;
         break;
+    case 1:
+        surface_out->Info.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
+        break;
     case 2:
         surface_out->Info.ChromaFormat = MFX_CHROMAFORMAT_YUV422;
         break;
+    case 3:
+        surface_out->Info.ChromaFormat = MFX_CHROMAFORMAT_YUV444;
+        break;
     default:
+        VM_ASSERT(!"Unknown chroma format");
         surface_out->Info.ChromaFormat = MFX_CHROMAFORMAT_YUV420;
         break;
     }

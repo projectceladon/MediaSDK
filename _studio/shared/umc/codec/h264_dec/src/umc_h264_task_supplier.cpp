@@ -1520,8 +1520,8 @@ void POCDecoder::DecodePictureOrderCount(const H264Slice *slice, int32_t frame_n
         m_PicOrderCnt = uAbsFrameNum*2;
         if (sliceHeader->nal_ref_idc == false)
             m_PicOrderCnt--;
-            m_TopFieldPOC = m_PicOrderCnt;
-            m_BottomFieldPOC = m_PicOrderCnt;
+        m_TopFieldPOC = m_PicOrderCnt;
+        m_BottomFieldPOC = m_PicOrderCnt;
 
     }    // pic_order_cnt type 2
 
@@ -3770,11 +3770,8 @@ void TaskSupplier::OnFullFrame(H264DecoderFrame * pFrame)
     }
 }
 
-Status TaskSupplier::InitializeLayers(AccessUnit *accessUnit, H264DecoderFrame * pFrame, int32_t field)
+Status TaskSupplier::InitializeLayers(AccessUnit *accessUnit, H264DecoderFrame * /*pFrame*/, int32_t /*field*/)
 {
-    pFrame;
-    field;
-
     accessUnit->SortforASO();
     size_t layersCount = accessUnit->GetLayersCount();
 

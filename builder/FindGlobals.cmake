@@ -1,15 +1,15 @@
 # Copyright (c) 2017 Intel Corporation
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -95,7 +95,7 @@ if( Linux OR Darwin )
 
   set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -pipe -fPIC ${c_warnings} ${no_warnings}")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe -fPIC ${cxx_warnings} ${no_warnings}")
-  append("-fPIE -pie" CMAKE_EXEC_LINKER_FLAGS)
+  append("-fPIE -pie" CMAKE_EXE_LINKER_FLAGS)
 
   # CACHE + FORCE should be used only here to make sure that this parameters applied globally
   # End user is responsible to adjust configuration parameters further if needed. Here
@@ -138,11 +138,15 @@ elseif( Windows )
   endif()
 endif( )
 
-set( MFX_SAMPLES_INSTALL_BIN_DIR ${CMAKE_INSTALL_PREFIX}/samples )
-set( MFX_SAMPLES_INSTALL_LIB_DIR ${CMAKE_INSTALL_PREFIX}/samples )
+if( NOT DEFINED MFX_APPS_DIR)
+  set( MFX_APPS_DIR ${CMAKE_INSTALL_FULL_DATADIR}/mfx )
+endif()
+
+set( MFX_SAMPLES_INSTALL_BIN_DIR ${MFX_APPS_DIR}/samples )
+set( MFX_SAMPLES_INSTALL_LIB_DIR ${MFX_APPS_DIR}/samples )
 
 if( NOT DEFINED MFX_PLUGINS_DIR )
-  set( MFX_PLUGINS_DIR ${CMAKE_INSTALL_PREFIX}/plugins )
+  set( MFX_PLUGINS_DIR ${CMAKE_INSTALL_FULL_LIBDIR}/mfx )
 endif( )
 
 if( NOT DEFINED MFX_MODULES_DIR )

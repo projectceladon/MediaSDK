@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Intel Corporation
+// Copyright (c) 2017-2018 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -796,6 +796,10 @@ mfxStatus CommonCORE::QueryPlatform(mfxPlatform* platform)
     case MFX_HW_CFL    : platform->CodeName = MFX_PLATFORM_COFFEELAKE;  break;
     case MFX_HW_CNL    : platform->CodeName = MFX_PLATFORM_CANNONLAKE;  break;
 #endif
+#if (MFX_VERSION >= MFX_VERSION_NEXT)
+    case MFX_HW_ICL    :
+    case MFX_HW_ICL_LP : platform->CodeName = MFX_PLATFORM_ICELAKE;     break;
+#endif
     default:             platform->CodeName = MFX_PLATFORM_UNKNOWN;     break;
     }
 
@@ -915,6 +919,13 @@ mfxStatus CommonCORE::DecreasePureReference(mfxU16& Locked)
         return MFX_ERR_NONE;
     }
 }// CommonCORE::IncreasePureReference(mfxFrameData *ptr)
+
+void CommonCORE::GetVA(mfxHDL* phdl, mfxU16 type)
+{
+    (void)type;
+
+    *phdl = 0;
+}// void CommonCORE::GetVA(mfxHDL* phdl, mfxU16 type)
 
 mfxStatus CommonCORE::IncreaseReference(mfxFrameData *ptr, bool ExtendedSearch)
 {
@@ -1284,6 +1295,27 @@ mfxStatus CoreDoSWFastCopy(mfxFrameSurface1 *pDst, mfxFrameSurface1 *pSrc, int c
     switch (pDst->Info.FourCC)
     {
     case MFX_FOURCC_P010:
+
+        if (pSrc->Info.Shift != pDst->Info.Shift)
+        {
+            mfxU8 lshift = 0;
+            mfxU8 rshift = 0;
+            if(pSrc->Info.Shift != 0)
+                rshift = (uint8_t)(16 - pDst->Info.BitDepthLuma);
+            else
+                lshift = (uint8_t)(16 - pDst->Info.BitDepthLuma);
+
+            roi.width <<= 1;
+
+            sts = FastCopy::CopyAndShift((mfxU16*)(pDst->Data.Y), dstPitch, (mfxU16 *)pSrc->Data.Y, srcPitch, roi, lshift, rshift, copyFlag);
+            MFX_CHECK_STS(sts);
+
+            roi.height >>= 1;
+
+            sts = FastCopy::CopyAndShift((mfxU16*)(pDst->Data.UV), dstPitch, (mfxU16 *)pSrc->Data.UV, srcPitch, roi, lshift, rshift, copyFlag);
+            MFX_CHECK_STS(sts);
+        }
+        else
         {
             roi.width <<= 1;
 
@@ -1354,7 +1386,8 @@ mfxStatus CoreDoSWFastCopy(mfxFrameSurface1 *pDst, mfxFrameSurface1 *pSrc, int c
 
         break;
 
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+
+#if defined (MFX_ENABLE_FOURCC_RGB565)
     case MFX_FOURCC_RGB565:
         {
             mfxU8* ptrSrc = pSrc->Data.B;
@@ -1379,6 +1412,27 @@ mfxStatus CoreDoSWFastCopy(mfxFrameSurface1 *pDst, mfxFrameSurface1 *pSrc, int c
             MFX_CHECK_STS(sts);
             break;
         }
+#ifdef MFX_ENABLE_RGBP
+    case MFX_FOURCC_RGBP:
+        {
+            mfxU8* ptrSrc = pSrc->Data.B;
+            mfxU8* ptrDst = pDst->Data.B;
+            sts = FastCopy::Copy(ptrDst, dstPitch, ptrSrc, srcPitch, roi, copyFlag);
+            MFX_CHECK_STS(sts);
+
+            ptrSrc = pSrc->Data.G;
+            ptrDst = pDst->Data.G;
+            sts = FastCopy::Copy(ptrDst, dstPitch, ptrSrc, srcPitch, roi, copyFlag);
+            MFX_CHECK_STS(sts);
+
+            ptrSrc = pSrc->Data.R;
+            ptrDst = pDst->Data.R;
+            sts = FastCopy::Copy(ptrDst, dstPitch, ptrSrc, srcPitch, roi, copyFlag);
+            MFX_CHECK_STS(sts);
+
+            break;
+        }
+#endif
 
     case MFX_FOURCC_AYUV:
     case MFX_FOURCC_RGB4:

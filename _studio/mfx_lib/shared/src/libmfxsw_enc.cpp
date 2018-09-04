@@ -43,36 +43,33 @@
 #include "mfx_h264_enc.h"
 #endif
 
-
-
-VideoENC *CreateENCSpecificClass(mfxVideoParam *par, VideoCORE *pCore)
+template<>
+VideoENC* _mfxSession::Create<VideoENC>(mfxVideoParam& par)
 {
-    VideoENC *pENC = (VideoENC *) 0;
+    VideoENC* pENC = nullptr;
+    VideoCORE* pCore = m_pCORE.get();
     mfxStatus mfxRes = MFX_ERR_MEMORY_ALLOC;
-    mfxU32 codecId = par->mfx.CodecId;
+    mfxU32 codecId = par.mfx.CodecId;
 
     switch (codecId)
     {
 #if ( defined(MFX_ENABLE_LA_H264_VIDEO_HW) || defined(MFX_ENABLE_H264_VIDEO_FEI_PREENC) || defined(MFX_ENABLE_H264_VIDEO_FEI_ENC))
     case MFX_CODEC_AVC:
 #if defined(MFX_ENABLE_LA_H264_VIDEO_HW)
-        if (bEnc_LA(par))
+        if (bEnc_LA(&par))
             pENC = (VideoENC*) new VideoENC_LA(pCore, &mfxRes);
 #endif
 #if defined(MFX_ENABLE_H264_VIDEO_FEI_PREENC)
-        if (bEnc_PREENC(par))
+        if (bEnc_PREENC(&par))
             pENC = (VideoENC*) new VideoENC_PREENC(pCore, &mfxRes);
 #endif
 #if defined(MFX_ENABLE_H264_VIDEO_FEI_ENC) && defined(MFX_ENABLE_H264_VIDEO_ENCODE_HW)
-        if (bEnc_ENC(par))
+        if (bEnc_ENC(&par))
             pENC = (VideoENC*) new VideoENC_ENC(pCore, &mfxRes);
 #endif
         break;
-#endif // MFX_ENABLE_H264_VIDEO_ENC || MFX_ENABLE_H264_VIDEO_ENC_H
+#endif
 
-
-
-    case 0: pCore;
     default:
         break;
     }
@@ -81,12 +78,11 @@ VideoENC *CreateENCSpecificClass(mfxVideoParam *par, VideoCORE *pCore)
     if (MFX_ERR_NONE != mfxRes)
     {
         delete pENC;
-        pENC = (VideoENC *) 0;
+        pENC = nullptr;
     }
 
     return pENC;
-
-} // VideoENC *CreateENCSpecificClass(mfxU32 codecId, VideoCORE *pCore)
+}
 
 mfxStatus MFXVideoENC_Query(mfxSession session, mfxVideoParam *in, mfxVideoParam *out)
 {
@@ -206,30 +202,11 @@ mfxStatus MFXVideoENC_Init(mfxSession session, mfxVideoParam *par)
         if (!session->m_pENC.get())
         {
             // create a new instance
-            session->m_bIsHWENCSupport = true;
-            session->m_pENC.reset(CreateENCSpecificClass(par, session->m_pCORE.get()));
+            session->m_pENC.reset(session->Create<VideoENC>(*par));
             MFX_CHECK(session->m_pENC.get(), MFX_ERR_INVALID_VIDEO_PARAM);
         }
 
         mfxRes = session->m_pENC->Init(par);
-
-        if (MFX_WRN_PARTIAL_ACCELERATION == mfxRes)
-        {
-            session->m_bIsHWENCSupport = false;
-            session->m_pENC.reset(CreateENCSpecificClass(par, session->m_pCORE.get()));
-            MFX_CHECK(session->m_pENC.get(), MFX_ERR_NULL_PTR);
-            mfxRes = session->m_pENC->Init(par);
-        }
-        else if (mfxRes >= MFX_ERR_NONE)
-            session->m_bIsHWENCSupport = true;
-
-        // SW fallback if EncodeGUID is absence
-        if (MFX_PLATFORM_HARDWARE == session->m_currentPlatform &&
-            !session->m_bIsHWENCSupport &&
-            MFX_ERR_NONE <= mfxRes)
-        {
-            mfxRes = MFX_WRN_PARTIAL_ACCELERATION;
-        } 
     }
     // handle error(s)
     catch(MFX_CORE_CATCH_TYPE)
@@ -292,13 +269,10 @@ mfxStatus MFXVideoENC_Close(mfxSession session)
 
 static
 mfxStatus MFXVideoENCLegacyRoutineExt(void *pState, void *pParam,
-                                   mfxU32 threadNumber, mfxU32 callNumber)
+                                   mfxU32 threadNumber, mfxU32 /* callNumber */)
 {
     VideoENC_Ext * pENC = (VideoENC_Ext  *) pState;
     MFX_THREAD_TASK_PARAMETERS *pTaskParam = (MFX_THREAD_TASK_PARAMETERS *) pParam;
-
-    // touch unreferenced parameter(s)
-    callNumber = callNumber;
 
     // check error(s)
     if ((NULL == pState) ||
@@ -364,7 +338,7 @@ mfxStatus  MFXVideoENC_ProcessFrameAsync(mfxSession session, mfxENCInput *in, mf
                 // fill dependencies
                 task.pSrc[0] = in;
                 task.pDst[0] = out;
-                task.pOwner= pEnc;  
+                task.pOwner= pEnc;
                 mfxRes = session->m_pScheduler->AddTask(task, &syncPoint);
 
             } // END OF OBSOLETE PART
@@ -396,7 +370,7 @@ mfxStatus  MFXVideoENC_ProcessFrameAsync(mfxSession session, mfxENCInput *in, mf
                 task.priority = session->m_priority;
                 task.threadingPolicy = pEnc->GetThreadingPolicy();
                 // fill dependencies
-                
+
                 task.pSrc[0] = in->InSurface;
                 task.pDst[0] = entryPoints[0].pParam;
 
@@ -411,7 +385,7 @@ mfxStatus  MFXVideoENC_ProcessFrameAsync(mfxSession session, mfxENCInput *in, mf
                 // fill dependencies
                 task.pSrc[0] = entryPoints[0].pParam;
                 task.pDst[0] = (MFX_ERR_NONE == mfxRes) ? out:0; // sync point for LA plugin
-                task.pDst[1] = in->InSurface; 
+                task.pDst[1] = in->InSurface;
 
 
                 // register input and call the task
@@ -423,7 +397,7 @@ mfxStatus  MFXVideoENC_ProcessFrameAsync(mfxSession session, mfxENCInput *in, mf
             {
                 mfxRes = MFX_ERR_MORE_DATA;
                 syncPoint = NULL;
-            }          
+            }
 
         }
 

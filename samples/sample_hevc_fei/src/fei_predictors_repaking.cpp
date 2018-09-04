@@ -32,8 +32,8 @@ PredictorsRepaking::PredictorsRepaking() :
     m_heightCU_ds(0),
     m_widthCU_enc(0),
     m_heightCU_enc(0),
-    m_NumMvPredictorsL0(0),
-    m_NumMvPredictorsL1(0)
+    m_maxNumMvPredictorsL0(0),
+    m_maxNumMvPredictorsL1(0)
 {}
 
 mfxStatus PredictorsRepaking::Init(const mfxVideoParam& videoParams, mfxU16 preencDSfactor, const mfxU16 numMvPredictors[2])
@@ -50,8 +50,8 @@ mfxStatus PredictorsRepaking::Init(const mfxVideoParam& videoParams, mfxU16 pree
     m_widthCU_enc  = (MSDK_ALIGN32(m_width)) >> 4;
     m_heightCU_enc = (MSDK_ALIGN32(m_height)) >> 4;
 
-    m_NumMvPredictorsL0 = numMvPredictors[0];
-    m_NumMvPredictorsL1 = numMvPredictors[1];
+    m_maxNumMvPredictorsL0 = numMvPredictors[0];
+    m_maxNumMvPredictorsL1 = numMvPredictors[1];
 
     return MFX_ERR_NONE;
 }
@@ -73,17 +73,17 @@ mfxU8 PredictorsRepaking::ConvertDSratioPower2(mfxU8 downsample_ratio)
     }
 }
 
-mfxStatus PredictorsRepaking::RepackPredictors(const HevcTask& eTask, mfxExtFeiHevcEncMVPredictors& mvp, mfxU16 nMvPredictors[2])
+mfxStatus PredictorsRepaking::RepackPredictors(const HevcTask& task, mfxExtFeiHevcEncMVPredictors& mvp, mfxU16 nMvPredictors[2])
 {
     mfxStatus sts = MFX_ERR_NONE;
 
     switch (m_repakingMode)
     {
     case PERFORMANCE:
-        sts = RepackPredictorsPerformance(eTask, mvp, nMvPredictors);
+        sts = RepackPredictorsPerformance(task, mvp, nMvPredictors);
         break;
     case QUALITY:
-        sts = RepackPredictorsQuality(eTask, mvp, nMvPredictors);
+        sts = RepackPredictorsQuality(task, mvp, nMvPredictors);
         break;
     default:
         return MFX_ERR_UNSUPPORTED;
@@ -92,24 +92,24 @@ mfxStatus PredictorsRepaking::RepackPredictors(const HevcTask& eTask, mfxExtFeiH
     return sts;
 }
 
-mfxStatus PredictorsRepaking::RepackPredictorsPerformance(const HevcTask& eTask, mfxExtFeiHevcEncMVPredictors& mvp, mfxU16 nMvPredictors[2])
+mfxStatus PredictorsRepaking::RepackPredictorsPerformance(const HevcTask& task, mfxExtFeiHevcEncMVPredictors& mvp, mfxU16 nMvPredictors[2])
 {
     std::vector<mfxExtFeiPreEncMVExtended*> mvs_vec;
     std::vector<const RefIdxPair*>          refIdx_vec;
 
-    mfxU8 numFinalL0Predictors = (std::min)(eTask.m_numRefActive[0], (mfxU8)m_NumMvPredictorsL0);
-    mfxU8 numFinalL1Predictors = (std::min)(eTask.m_numRefActive[1], (mfxU8)m_NumMvPredictorsL1);
+    mfxU8 numFinalL0Predictors = (std::min)(task.m_numRefActive[0], (mfxU8)m_maxNumMvPredictorsL0);
+    mfxU8 numFinalL1Predictors = (std::min)(task.m_numRefActive[1], (mfxU8)m_maxNumMvPredictorsL1);
     mfxU8 numPredPairs = (std::min)(m_max_fei_enc_mvp_num, (std::max)(numFinalL0Predictors, numFinalL1Predictors));
 
     // I-frames, nothing to do
-    if (numPredPairs == 0 || (eTask.m_frameType & MFX_FRAMETYPE_I))
+    if (numPredPairs == 0 || (task.m_frameType & MFX_FRAMETYPE_I))
         return MFX_ERR_NONE;
 
     mvs_vec.reserve(m_max_fei_enc_mvp_num);
     refIdx_vec.reserve(m_max_fei_enc_mvp_num);
 
     // PreENC parameters reading
-    for (std::list<PreENCOutput>::const_iterator it = eTask.m_preEncOutput.begin(); it != eTask.m_preEncOutput.end(); ++it)
+    for (std::list<PreENCOutput>::const_iterator it = task.m_preEncOutput.begin(); it != task.m_preEncOutput.end(); ++it)
     {
         if (!it->m_mv)
             return MFX_ERR_UNDEFINED_BEHAVIOR;
@@ -127,15 +127,23 @@ mfxStatus PredictorsRepaking::RepackPredictorsPerformance(const HevcTask& eTask,
 
     const mfxI16Pair zeroPair = { 0, 0 };
 
-    mfxU32 linearPreEncIdx = 0;
+    // disable all MVP blocks at first
+    std::for_each(mvp.Data, mvp.Data + mvp.Pitch * mvp.Height,
+            [](mfxFeiHevcEncMVPredictors& block)
+            {
+                block.BlockSize = 0;
+                block.RefIdx[0].RefL0 = block.RefIdx[0].RefL1 = 0xf;
+                block.RefIdx[1].RefL0 = block.RefIdx[1].RefL1 = 0xf;
+                block.RefIdx[2].RefL0 = block.RefIdx[2].RefL1 = 0xf;
+                block.RefIdx[3].RefL0 = block.RefIdx[3].RefL1 = 0xf;
+            }
+         );
 
-    // get nPred_actual L0/L1 predictors for each CU
+    // the main loop thru all blocks
     for (mfxU32 rowIdx = 0; rowIdx < m_heightCU_enc; ++rowIdx) // row index for full surface (raster-scan order)
     {
         for (mfxU32 colIdx = 0; colIdx < m_widthCU_enc; ++colIdx) // column index for full surface (raster-scan order)
         {
-            linearPreEncIdx = rowIdx * m_widthCU_ds + colIdx;
-
             // calculation of the input index for encoder after permutation from raster scan order index into 32x32 layout
             // HEVC encoder works with 32x32 layout
             mfxU32 permutEncIdx =
@@ -145,28 +153,31 @@ mfxStatus PredictorsRepaking::RepackPredictorsPerformance(const HevcTask& eTask,
                 + ((rowIdx & 1) << 1);          // zero or double offset depending on the number of row index,
                                                 // zero shift for top 16x16 blocks into 32x32 layout and double for bottom blocks;
 
+            mfxFeiHevcEncMVPredictors& block = mvp.Data[permutEncIdx];
+
             // BlockSize is used only when mfxExtFeiHevcEncFrameCtrl::MVPredictor = 7
             // 0 - MV predictor is disabled
             // 1 - enabled per 16x16 block
             // 2 - enabled per 32x32 block (used only first 16x16 block data)
-            mvp.Data[permutEncIdx].BlockSize = 1; // Using finest granularity
+            block.BlockSize = 1; // Using finest granularity
 
+            mfxU32 linearPreEncIdx = rowIdx * m_widthCU_ds + colIdx;
             for (mfxU32 j = 0; j < numPredPairs; ++j)
             {
-                mvp.Data[permutEncIdx].RefIdx[j].RefL0 = refIdx_vec[j]->RefL0;
-                mvp.Data[permutEncIdx].RefIdx[j].RefL1 = refIdx_vec[j]->RefL1;
+                block.RefIdx[j].RefL0 = refIdx_vec[j]->RefL0;
+                block.RefIdx[j].RefL1 = refIdx_vec[j]->RefL1;
 
                 if (m_downsample_power2 == 0)// w/o VPP
                 {
                     if (colIdx >= m_widthCU_ds || rowIdx >= m_heightCU_ds)
                     {
-                        mvp.Data[permutEncIdx].MV[j][0] = zeroPair;
-                        mvp.Data[permutEncIdx].MV[j][1] = zeroPair;
+                        block.MV[j][0] = zeroPair;
+                        block.MV[j][1] = zeroPair;
                     }
                     else
                     {
-                        mvp.Data[permutEncIdx].MV[j][0] = mvs_vec[j]->MB[linearPreEncIdx].MV[0][0];
-                        mvp.Data[permutEncIdx].MV[j][1] = mvs_vec[j]->MB[linearPreEncIdx].MV[0][1];
+                        block.MV[j][0] = mvs_vec[j]->MB[linearPreEncIdx].MV[0][0];
+                        block.MV[j][1] = mvs_vec[j]->MB[linearPreEncIdx].MV[0][1];
                     }
                 }
                 else
@@ -200,22 +211,28 @@ mfxStatus PredictorsRepaking::RepackPredictorsPerformance(const HevcTask& eTask,
                         break;
                     }
 
-                    mvp.Data[permutEncIdx].MV[j][0] = mvs_vec[j]->MB[preencCUIdx].MV[ZigzagOrder[preencMVIdx]][0];
-                    mvp.Data[permutEncIdx].MV[j][1] = mvs_vec[j]->MB[preencCUIdx].MV[ZigzagOrder[preencMVIdx]][1];
+                    block.MV[j][0] = mvs_vec[j]->MB[preencCUIdx].MV[ZigzagOrder[preencMVIdx]][0];
+                    block.MV[j][1] = mvs_vec[j]->MB[preencCUIdx].MV[ZigzagOrder[preencMVIdx]][1];
 
-                    mvp.Data[permutEncIdx].MV[j][0].x <<= m_downsample_power2;
-                    mvp.Data[permutEncIdx].MV[j][0].y <<= m_downsample_power2;
-                    mvp.Data[permutEncIdx].MV[j][1].x <<= m_downsample_power2;
-                    mvp.Data[permutEncIdx].MV[j][1].y <<= m_downsample_power2;
+                    block.MV[j][0].x <<= m_downsample_power2;
+                    block.MV[j][0].y <<= m_downsample_power2;
+                    block.MV[j][1].x <<= m_downsample_power2;
+                    block.MV[j][1].y <<= m_downsample_power2;
                 }
+            }
+
+            // Duplicate predictors to the first L0 reference in the first L1 MVP slot
+            if (task.m_ldb)
+            {
+                assert(m_maxNumMvPredictorsL1 == 1);
+
+                block.RefIdx[0].RefL1 = block.RefIdx[0].RefL0;
+                block.MV[0][1] = block.MV[0][0];
+                numFinalL1Predictors = 1;
             }
         }
     }
-    /* NB: Repacker in the performance mode uses only a single (the first) predictor of each 16x16 block
-     * from each PreENC output pair "current_surface<->reference_surface"
-     * so it's valid to set a number of MVPs according to number of active references for a current frame.
-     * Such approach mitigates the code problem above
-     * that we don't clean up MVPs remained in mfxExtFeiHevcEncMVPredictors buffer from previous calls. */
+
     nMvPredictors[0] = numFinalL0Predictors;
     nMvPredictors[1] = numFinalL1Predictors;
 
@@ -224,18 +241,19 @@ mfxStatus PredictorsRepaking::RepackPredictorsPerformance(const HevcTask& eTask,
 
 void SelectFromMV(const mfxI16Pair(*mv)[2], mfxI32 count, mfxI16Pair(&res)[2]);
 
-mfxStatus PredictorsRepaking::RepackPredictorsQuality(const HevcTask& eTask, mfxExtFeiHevcEncMVPredictors& mvp, mfxU16 nMvPredictors[2])
+mfxStatus PredictorsRepaking::RepackPredictorsQuality(const HevcTask& task, mfxExtFeiHevcEncMVPredictors& mvp, mfxU16 nMvPredictors[2])
 {
     std::vector<mfxExtFeiPreEncMVExtended*>     mvs_vec;
     std::vector<mfxExtFeiPreEncMBStatExtended*> mbs_vec;
     std::vector<const RefIdxPair*>              refIdx_vec;
 
-    mfxU8 numFinalL0Predictors = (std::min)(eTask.m_numRefActive[0], (mfxU8)m_NumMvPredictorsL0);
-    mfxU8 numFinalL1Predictors = (std::min)(eTask.m_numRefActive[1], (mfxU8)m_NumMvPredictorsL1);
+    mfxU8 numFinalL0Predictors = (std::min)(task.m_numRefActive[0], (mfxU8)m_maxNumMvPredictorsL0);
+    // Currently RepackPredictorsQuality() doesn't have logic to handle L1 predictors of GPB frames
+    mfxU8 numFinalL1Predictors = (std::min)((mfxU8)(task.m_ldb ? 0 : task.m_numRefActive[1]), (mfxU8)m_maxNumMvPredictorsL1);
     mfxU8 numPredPairs = (std::min)(m_max_fei_enc_mvp_num, (std::max)(numFinalL0Predictors, numFinalL1Predictors));
 
     // I-frames, nothing to do
-    if (numPredPairs == 0 || (eTask.m_frameType & MFX_FRAMETYPE_I))
+    if (numPredPairs == 0 || (task.m_frameType & MFX_FRAMETYPE_I))
         return MFX_ERR_NONE;
 
     mvs_vec.reserve(m_max_fei_enc_mvp_num);
@@ -243,7 +261,7 @@ mfxStatus PredictorsRepaking::RepackPredictorsQuality(const HevcTask& eTask, mfx
     refIdx_vec.reserve(m_max_fei_enc_mvp_num);
 
     // PreENC parameters reading
-    for (std::list<PreENCOutput>::const_iterator it = eTask.m_preEncOutput.begin(); it != eTask.m_preEncOutput.end(); ++it)
+    for (std::list<PreENCOutput>::const_iterator it = task.m_preEncOutput.begin(); it != task.m_preEncOutput.end(); ++it)
     {
         if (!it->m_mv || !it->m_mb)
             return MFX_ERR_UNDEFINED_BEHAVIOR;
@@ -261,8 +279,19 @@ mfxStatus PredictorsRepaking::RepackPredictorsQuality(const HevcTask& eTask, mfx
 
     const mfxI16Pair zeroPair = { 0, 0 };
 
-    mfxU32 linearPreEncIdx = 0;
-    // get nPred_actual L0/L1 predictors for each CU
+    // disable all MVP blocks at first
+    std::for_each(mvp.Data, mvp.Data + mvp.Pitch * mvp.Height,
+            [](mfxFeiHevcEncMVPredictors& block)
+            {
+                block.BlockSize = 0;
+                block.RefIdx[0].RefL0 = block.RefIdx[0].RefL1 = 0xf;
+                block.RefIdx[1].RefL0 = block.RefIdx[1].RefL1 = 0xf;
+                block.RefIdx[2].RefL0 = block.RefIdx[2].RefL1 = 0xf;
+                block.RefIdx[3].RefL0 = block.RefIdx[3].RefL1 = 0xf;
+            }
+         );
+
+    // the main loop thru all blocks
     for (mfxU32 rowIdx = 0; rowIdx < m_heightCU_enc; ++rowIdx) // row index for full surface (raster-scan order)
     {
         for (mfxU32 colIdx = 0; colIdx < m_widthCU_enc; ++colIdx) // column index for full surface (raster-scan order)
@@ -271,8 +300,6 @@ mfxStatus PredictorsRepaking::RepackPredictorsQuality(const HevcTask& eTask, mfx
             mfxU8 ref[4][2];
             mfxI16Pair mv[4][2];
             mfxU16 distortion[4][2];
-
-            linearPreEncIdx = rowIdx * m_widthCU_ds + colIdx;
 
             // calculation of the input index for encoder after permutation from raster scan order index into 32x32 layout
             // HEVC encoder works with 32x32 layout
@@ -283,11 +310,15 @@ mfxStatus PredictorsRepaking::RepackPredictorsQuality(const HevcTask& eTask, mfx
                 + ((rowIdx & 1) << 1);          // zero or double offset depending on the number of row index,
                                                 // zero shift for top 16x16 blocks into 32x32 layout and double for bottom blocks;
 
+            mfxFeiHevcEncMVPredictors& block = mvp.Data[permutEncIdx];
+
             // BlockSize is used only when mfxExtFeiHevcEncFrameCtrl::MVPredictor = 7
             // 0 - MV predictor disabled
             // 1 - enabled per 16x16 block
             // 2 - enabled per 32x32 block (used only first 16x16 block data)
-            mvp.Data[permutEncIdx].BlockSize = 1; // Using finest granularity
+            block.BlockSize = 1; // Using finest granularity
+
+            mfxU32 linearPreEncIdx = rowIdx * m_widthCU_ds + colIdx;
             for (mfxU32 j = 0; j < numPredPairs; ++j)
             {
                 ref[j][0] = refIdx_vec[j]->RefL0;
@@ -348,18 +379,18 @@ mfxStatus PredictorsRepaking::RepackPredictorsQuality(const HevcTask& eTask, mfx
                     mv[j][1].x <<= m_downsample_power2;
                     mv[j][1].y <<= m_downsample_power2;
 
-                    distortion[j][0] = (j < eTask.m_numRefActive[0]) ? mbs_vec[j]->MB[preencCUIdx].Inter[0].BestDistortion : 0xffff;
-                    distortion[j][1] = (j < eTask.m_numRefActive[1]) ? mbs_vec[j]->MB[preencCUIdx].Inter[1].BestDistortion : 0xffff;
+                    distortion[j][0] = (j < numFinalL0Predictors) ? mbs_vec[j]->MB[preencCUIdx].Inter[0].BestDistortion : 0xffff;
+                    distortion[j][1] = (j < numFinalL1Predictors) ? mbs_vec[j]->MB[preencCUIdx].Inter[1].BestDistortion : 0xffff;
                 }
             }
 
             // sort predictors by ascending distortion
             if (numPredPairs < 2) // nothing to sort
             {
-                mvp.Data[permutEncIdx].MV[0][0] = mv[0][0];
-                mvp.Data[permutEncIdx].MV[0][1] = mv[0][1];
-                mvp.Data[permutEncIdx].RefIdx[0].RefL0 = ref[0][0];
-                mvp.Data[permutEncIdx].RefIdx[0].RefL1 = ref[0][1];
+                block.MV[0][0] = mv[0][0];
+                block.MV[0][1] = mv[0][1];
+                block.RefIdx[0].RefL0 = ref[0][0];
+                block.RefIdx[0].RefL1 = ref[0][1];
                 continue;
             }
 
@@ -387,10 +418,10 @@ mfxStatus PredictorsRepaking::RepackPredictorsQuality(const HevcTask& eTask, mfx
             // here 'worse' tells how many cases are better, so it is position in sorted array
             for (mfxU32 j = 0; j < 4; j++)
             {
-                mvp.Data[permutEncIdx].MV[worse[j][0]][0] = mv[j][0];
-                mvp.Data[permutEncIdx].MV[worse[j][1]][1] = mv[j][1];
-                mvp.Data[permutEncIdx].RefIdx[worse[j][0]].RefL0 = ref[j][0];
-                mvp.Data[permutEncIdx].RefIdx[worse[j][1]].RefL1 = ref[j][1];
+                block.MV[worse[j][0]][0] = mv[j][0];
+                block.MV[worse[j][1]][1] = mv[j][1];
+                block.RefIdx[worse[j][0]].RefL0 = ref[j][0];
+                block.RefIdx[worse[j][1]].RefL1 = ref[j][1];
             }
         }
     }
