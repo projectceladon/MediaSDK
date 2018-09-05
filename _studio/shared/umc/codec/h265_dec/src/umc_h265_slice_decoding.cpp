@@ -85,7 +85,7 @@ int32_t H265Slice::RetrievePicParamSetNumber()
     if (!m_source.GetDataSize())
         return -1;
 
-    memset(&m_SliceHeader, 0, sizeof(m_SliceHeader));
+    memset(reinterpret_cast<void*>(&m_SliceHeader), 0, sizeof(m_SliceHeader));
     m_BitStream.Reset((uint8_t *) m_source.GetPointer(), (uint32_t) m_source.GetDataSize());
 
     UMC::Status umcRes = UMC::UMC_OK;
@@ -158,7 +158,7 @@ bool H265Slice::DecodeSliceHeader(PocDecoding * pocDecoding)
     // discarded when read again here.
     try
     {
-        memset(&m_SliceHeader, 0, sizeof(m_SliceHeader));
+        memset(reinterpret_cast<void*>(&m_SliceHeader), 0, sizeof(m_SliceHeader));
 
         umcRes = m_BitStream.GetNALUnitType(m_SliceHeader.nal_unit_type,
                                             m_SliceHeader.nuh_temporal_id);
@@ -275,6 +275,12 @@ bool H265Slice::DecodeSliceHeader(PocDecoding * pocDecoding)
    }
     catch(...)
     {
+	if (!m_SliceHeader.dependent_slice_segment_flag)
+        {
+            if (m_SliceHeader.slice_type != I_SLICE)
+                m_bError = true;
+        }
+
         return false;
     }
 

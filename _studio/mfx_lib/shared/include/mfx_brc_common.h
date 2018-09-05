@@ -1,15 +1,15 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -75,14 +75,14 @@ public:
         {
             if (bPanic || bSH)
             {
-                m_maxWinBitsLim = MFX_MAX(MFX_MIN((GetLastFrameBits(windowSize) + m_maxWinBits) / 2, m_maxWinBits), GetMaxWinBitsLim());
+                m_maxWinBitsLim = MFX_MAX(MFX_MIN((GetLastFrameBits(windowSize,false) + m_maxWinBits) / 2, m_maxWinBits), GetMaxWinBitsLim());
             }
             else
             {
                 if (recode)
-                    m_maxWinBitsLim = MFX_MIN(MFX_MAX(GetLastFrameBits(windowSize) + GetStep() / 2, m_maxWinBitsLim), m_maxWinBits);
+                    m_maxWinBitsLim = MFX_MIN(MFX_MAX(GetLastFrameBits(windowSize,false) + GetStep() / 2, m_maxWinBitsLim), m_maxWinBits);
                 else if ((m_maxWinBitsLim > GetMaxWinBitsLim() + GetStep()) &&
-                    (m_maxWinBitsLim - GetStep() > (GetLastFrameBits(windowSize - 1) + sizeInBits)))
+                    (m_maxWinBitsLim - GetStep() > (GetLastFrameBits(windowSize - 1,false) + sizeInBits)))
                     m_maxWinBitsLim -= GetStep();
             }
 
@@ -90,7 +90,8 @@ public:
     }
     mfxU32 GetMaxFrameSize(bool bPanic, bool bSH, mfxU32 recode)
     {
-        mfxU32 winBits = GetLastFrameBits(GetWindowSize() - 1);
+        mfxU32 winBits = GetLastFrameBits(GetWindowSize() - 1, recode < 1);
+
         mfxU32 maxWinBitsLim = m_maxWinBitsLim;
         if (bSH)
             maxWinBitsLim = (m_maxWinBits + m_maxWinBitsLim) / 2;
@@ -111,7 +112,7 @@ public:
     mfxI32 GetBudget(mfxU32 numFrames)
     {
         numFrames = MFX_MIN((mfxU32)m_slidingWindow.size(), numFrames);
-        return ((mfxI32)m_maxWinBitsLim - (mfxI32)GetLastFrameBits((mfxU32)m_slidingWindow.size() - numFrames));
+        return ((mfxI32)m_maxWinBitsLim - (mfxI32)GetLastFrameBits((mfxU32)m_slidingWindow.size() - numFrames, false));
     }
 
 
@@ -128,13 +129,16 @@ protected:
 
 
 
-    mfxU32 GetLastFrameBits(mfxU32 numFrames)
+    mfxU32 GetLastFrameBits(mfxU32 numFrames, bool bCheckSkip)
     {
         mfxU32 size = 0;
         numFrames = numFrames < m_slidingWindow.size() ? numFrames : (mfxU32)m_slidingWindow.size();
         for (mfxU32 i = 0; i < numFrames; i++)
         {
-            size += m_slidingWindow[(m_currPosInWindow + m_slidingWindow.size() - i) % m_slidingWindow.size()];
+			mfxU32 frame_size = m_slidingWindow[(m_currPosInWindow + m_slidingWindow.size() - i) % m_slidingWindow.size()];
+			if (bCheckSkip && (frame_size < m_avgBitPerFrame / 3))
+				frame_size = m_avgBitPerFrame / 3;
+            size += frame_size;
             //printf("GetLastFrames: %d) %d sum %d\n",i,m_slidingWindow[(m_currPosInWindow + m_slidingWindow.size() - i) % m_slidingWindow.size() ], size);
         }
         return size;
@@ -149,7 +153,7 @@ protected:
         return m_maxWinBits - GetStep() * GetWindowSize();
     }
 };
- 
+
 #if defined (MFX_ENABLE_H264_VIDEO_ENCODE) || defined (MFX_ENABLE_H265_VIDEO_ENCODE)
 
 #define MIN_RACA 0.25
@@ -179,7 +183,7 @@ public:
     // RC params
     mfxU32 targetbps;
     mfxU32 maxbps;
-    mfxF64 frameRate;    
+    mfxF64 frameRate;
     mfxF64 inputBitsPerFrame;
     mfxF64 maxInputBitsPerFrame;
     mfxU32 maxFrameSizeInBits;
@@ -196,11 +200,12 @@ public:
     mfxU16 gopPicSize;
     mfxU16 gopRefDist;
     bool   bPyr;
+    bool   bFieldMode;
 
     //BRC accurancy params
-    mfxF64 fAbPeriodLong;   // number on frames to calculate abberation from target frame 
-    mfxF64 fAbPeriodShort;  // number on frames to calculate abberation from target frame 
-    mfxF64 dqAbPeriod;      // number on frames to calculate abberation from dequant 
+    mfxF64 fAbPeriodLong;   // number on frames to calculate abberation from target frame
+    mfxF64 fAbPeriodShort;  // number on frames to calculate abberation from target frame
+    mfxF64 dqAbPeriod;      // number on frames to calculate abberation from dequant
     mfxF64 bAbPeriod;       // number of frames to calculate abberation from target bitrate
 
     //QP parameters
@@ -245,6 +250,7 @@ public:
         gopPicSize(0),
         gopRefDist(0),
         bPyr(0),
+        bFieldMode(0),
         fAbPeriodLong(0),
         fAbPeriodShort(0),
         dqAbPeriod(0),
@@ -297,7 +303,7 @@ public:
     mfxF64    GetBufferDiviation(mfxU32 targetBitrate);
     mfxF64    GetBufferDiviation();
     mfxF64    GetBufferDiviationFactor();
- 
+
 
 
 private:
@@ -312,7 +318,7 @@ private:
 private:
     mfxI32 m_buffSizeInBits;
     mfxI32 m_delayInBits;
-    mfxF64 m_inputBitsPerFrame;    
+    mfxF64 m_inputBitsPerFrame;
     bool   m_bCBR;
 
 };
@@ -342,13 +348,13 @@ struct BRC_Ctx
     mfxU32 LastIQpSetOrder; // Qp of last intra frame
     mfxU32 LastIQpMin; // Qp of last intra frame
     mfxU32 LastIQpSet;      // Qp of last intra frame
-    
+
     mfxU32 LastNonBFrameSize; // encoded frame size of last non B frame (is used for sceneChange)
 
     mfxF64 fAbLong;         // frame abberation (long period)
     mfxF64 fAbShort;        // frame abberation (short period)
     mfxF64 dQuantAb;        // dequant abberation
-    mfxI32 totalDiviation;   // divation from  target bitrate (total)
+    mfxF64 totalDiviation;   // divation from  target bitrate (total)
 
     mfxF64 eRate;               // eRate of last encoded frame, this parameter is used for scene change calculation
     mfxF64 eRateSH;             // eRate of last encoded scene change frame, this parameter is used for scene change calculation
@@ -383,7 +389,7 @@ public:
     mfxStatus Close () {
         //printf("\nFrames skipped: %i \n", m_SkipCount);
         //printf("\nNumber of re-encodes: %i \n", m_ReEncodeCount);
-        m_bInit = false; 
+        m_bInit = false;
         return MFX_ERR_NONE;
     }
     mfxStatus GetFrameCtrl (mfxBRCFrameParam* par, mfxBRCFrameCtrl* ctrl);
@@ -401,7 +407,7 @@ namespace HEVCExtBRC
     inline mfxStatus Init  (mfxHDL pthis, mfxVideoParam* par)
     {
         MFX_CHECK_NULL_PTR1(pthis);
-        return ((MfxHwH265EncodeBRC::ExtBRC*)pthis)->Init(par) ;    
+        return ((MfxHwH265EncodeBRC::ExtBRC*)pthis)->Init(par) ;
     }
     inline mfxStatus Reset (mfxHDL pthis, mfxVideoParam* par)
     {
@@ -411,12 +417,12 @@ namespace HEVCExtBRC
     inline mfxStatus Close (mfxHDL pthis)
     {
         MFX_CHECK_NULL_PTR1(pthis);
-        return ((MfxHwH265EncodeBRC::ExtBRC*)pthis)->Close() ;    
+        return ((MfxHwH265EncodeBRC::ExtBRC*)pthis)->Close() ;
     }
     inline mfxStatus GetFrameCtrl (mfxHDL pthis, mfxBRCFrameParam* par, mfxBRCFrameCtrl* ctrl)
     {
        MFX_CHECK_NULL_PTR1(pthis);
-       return ((MfxHwH265EncodeBRC::ExtBRC*)pthis)->GetFrameCtrl(par,ctrl) ;    
+       return ((MfxHwH265EncodeBRC::ExtBRC*)pthis)->GetFrameCtrl(par,ctrl) ;
     }
     inline mfxStatus Update       (mfxHDL pthis, mfxBRCFrameParam* par, mfxBRCFrameCtrl* ctrl, mfxBRCFrameStatus* status)
     {
@@ -431,7 +437,7 @@ namespace HEVCExtBRC
         m_BRC.Reset = Reset;
         m_BRC.Close = Close;
         m_BRC.GetFrameCtrl = GetFrameCtrl;
-        m_BRC.Update = Update; 
+        m_BRC.Update = Update;
         return MFX_ERR_NONE;
     }
     inline mfxStatus Destroy(mfxExtBRC & m_BRC)
@@ -445,7 +451,7 @@ namespace HEVCExtBRC
         m_BRC.Reset = 0;
         m_BRC.Close = 0;
         m_BRC.GetFrameCtrl = 0;
-        m_BRC.Update = 0;   
+        m_BRC.Update = 0;
         return MFX_ERR_NONE;
     }
 }

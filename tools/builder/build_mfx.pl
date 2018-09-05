@@ -57,6 +57,7 @@ my @list_ipp       = qw(
   i7
   sx s2
 );
+my @list_tools     = qw(on off);
 
 sub in_array {
     my %items;
@@ -98,9 +99,9 @@ sub get_cmake_target {
     push @cmake_target, $config{'comp'} if $config{'comp'} ne 'gcc';
 
     if ($config{'trace'} eq 'itt') {
-        push @cmake_target, ".$config{'trace'}";
+        push @cmake_target, "$config{'trace'}";
     } elsif ($config{'trace'}) {
-        push @cmake_target, ".trace_$config{'trace'}";
+        push @cmake_target, "trace_$config{'trace'}";
     }
     return join('.', @cmake_target);
 }
@@ -131,19 +132,25 @@ sub get_cmake_gen_cmd {
     push @cmake_cmd_gen, "-D__TARGET_PLATFORM:STRING=$config{'target'}";
 
     push @cmake_cmd_gen, "-D__TRACE:STRING=$config{'trace'}"           if $config{'trace'};
+    push @cmake_cmd_gen, "-DENABLE_ITT=ON"                             if $config{'trace'} eq 'itt';
     push @cmake_cmd_gen, "-DCMAKE_C_COMPILER:STRING=$config{'cc'}"     if $config{'cc'};
     push @cmake_cmd_gen, "-DCMAKE_CXX_COMPILER:STRING=$config{'cxx'}"  if $config{'cxx'};
     push @cmake_cmd_gen, "-DCMAKE_TOOLCHAIN_FILE=$config{'toolchain'}" if $config{'toolchain'};
     push @cmake_cmd_gen, "-DCMAKE_INSTALL_PREFIX=$config{'prefix'} "   if $config{'prefix'};
+    push @cmake_cmd_gen, "-DBUILD_TOOLS=ON"                            if $config{'tools'} eq 'on';
 
-    push @cmake_cmd_gen, '-DWARNING_FLAGS="-Wall -Werror"' if not $no_warn_as_error;
+    my $compile_flags = "";
+
+    if (not $no_warn_as_error) {
+      $compile_flags .= "-Wall -Werror"
+    }
 
     if (lc($config{'config'}) eq "release") {
-        my $compile_flags = "-O2 -D_FORTIFY_SOURCE=2 -fstack-protector -DNDEBUG";
+        $compile_flags .= " -O2 -D_FORTIFY_SOURCE=2 -fstack-protector-strong -DNDEBUG";
         push @cmake_cmd_gen, "-DCMAKE_C_FLAGS_RELEASE=\"$compile_flags\"";
         push @cmake_cmd_gen, "-DCMAKE_CXX_FLAGS_RELEASE=\"$compile_flags\"";
     } else {
-        my $compile_flags = "-O0 -g";
+        $compile_flags .= " -O0 -g";
         push @cmake_cmd_gen, "-DCMAKE_C_FLAGS_DEBUG=\"$compile_flags\"";
         push @cmake_cmd_gen, "-DCMAKE_CXX_FLAGS_DEBUG=\"$compile_flags\"";
     }
@@ -170,7 +177,7 @@ sub usage {
     print "\n";
     print "Copyright (c) 2012-2017 Intel Corporation. All rights reserved.\n";
     print "This script performs Intel(R) Media SDK projects creation and build.\n\n";
-    print "Usage: perl build.pl --cmake=ARCH.GENERATOR.CONFIG[.COMP] [--ipp=<cpu>] [--clean] [--build] [--trace=<module>] [--cross=toolchain.cmake]\n";
+    print "Usage: perl build.pl --cmake=ARCH.GENERATOR.CONFIG[.COMP] [--ipp=<cpu>] [--clean] [--build] [--trace=<module>] [--cross=toolchain.cmake] [--tools=(on|off)]\n";
     print "\n";
     print "Possible variants:\n";
     print "\tARCH = intel64\n";
@@ -188,6 +195,7 @@ sub usage {
     print "\t--build  - try to build projects before generation\n";
     print "\t--trace  - enable MFX tracing with specified modules (itt|all)\n";
     print "\t--cross  - provide cross-compiler setings to CMake\n";
+    print "\t--tools  - enable building of tools (on|off)\n";
     print "\t--target - select feature subset specific to target project. default is BDW (", @list_target, ")\n";
     print "\t--no-warn-as-error  - disable Warning As Error\n";
     print "\t--prefix - set install prefix\n";
@@ -266,6 +274,7 @@ GetOptions(
     '--ipp=s'    => sub { my ($k, $v) = @_; _opt_in_list($k, $v, ['', @list_ipp]);    },
     '--trace=s'  => sub { my ($k, $v) = @_; _opt_in_list($k, $v, ['', @list_trace]);  },
     '--target=s' => sub { my ($k, $v) = @_; _opt_in_list($k, $v, ['', @list_target]); },
+	'--tools=s'  => sub { my ($k, $v) = @_; _opt_in_list($k, $v, ['', @list_tools]); },
 ) or usage();
 
 my $build_root = getcwd;

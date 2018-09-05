@@ -1,15 +1,15 @@
-// Copyright (c) 2017 Intel Corporation
-// 
+// Copyright (c) 2017-2018 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -35,20 +35,19 @@
 #include "mfx_h264_fei_pak.h"
 #endif
 
-VideoPAK *CreatePAKSpecificClass(mfxVideoParam *par, mfxU32 codecProfile, VideoCORE *pCore)
+template<>
+VideoPAK* _mfxSession::Create<VideoPAK>(mfxVideoParam& par)
 {
-    VideoPAK *pPAK = (VideoPAK *) 0;
+    VideoPAK* pPAK = nullptr;
+    VideoCORE* pCore = m_pCORE.get();
     mfxStatus mfxRes = MFX_ERR_MEMORY_ALLOC;
-
-    // touch unreferenced parameters
-    codecProfile = codecProfile;
-    mfxU32 codecId = par->mfx.CodecId;
+    mfxU32 codecId = par.mfx.CodecId;
 
     switch (codecId)
     {
 #if defined(MFX_VA_LINUX) && defined(MFX_ENABLE_H264_VIDEO_ENCODE_HW) && defined(MFX_ENABLE_H264_VIDEO_FEI_PAK)
     case MFX_CODEC_AVC:
-        if (bEnc_PAK(par))
+        if (bEnc_PAK(&par))
             pPAK = (VideoPAK*) new VideoPAK_PAK(pCore, &mfxRes);
         break;
 #endif // MFX_ENABLE_H264_VIDEO_FEI_PAK
@@ -61,12 +60,11 @@ VideoPAK *CreatePAKSpecificClass(mfxVideoParam *par, mfxU32 codecProfile, VideoC
     if (MFX_ERR_NONE != mfxRes)
     {
         delete pPAK;
-        pPAK = (VideoPAK *) 0;
+        pPAK = nullptr;
     }
 
     return pPAK;
-
-} // VideoPAK *CreatePAKSpecificClass(mfxU32 codecId, mfxU32 codecProfile, VideoCORE *pCore)
+}
 
 mfxStatus MFXVideoPAK_Query(mfxSession session, mfxVideoParam *in, mfxVideoParam *out)
 {
@@ -143,17 +141,8 @@ mfxStatus MFXVideoPAK_Init(mfxSession session, mfxVideoParam *par)
     MFX_CHECK(par, MFX_ERR_NULL_PTR);
     try
     {
-        // close the existing PAK unit,
-        // if it is initialized.
-        if (session->m_pPAK.get())
-        {
-            MFXVideoPAK_Close(session);
-        }
-
         // create a new instance
-        session->m_pPAK.reset(CreatePAKSpecificClass(par,
-                                                     par->mfx.CodecProfile,
-                                                     session->m_pCORE.get()));
+        session->m_pPAK.reset(session->Create<VideoPAK>(*par));
         MFX_CHECK(session->m_pPAK.get(), MFX_ERR_INVALID_VIDEO_PARAM);
         mfxRes = session->m_pPAK->Init(par);
     }
@@ -214,7 +203,7 @@ mfxStatus MFXVideoPAK_Close(mfxSession session)
     return mfxRes;
 
 } // mfxStatus MFXVideoPAK_Close(mfxSession session)
-                                   
+
 enum
 {
     MFX_NUM_ENTRY_POINTS = 2

@@ -1,15 +1,15 @@
-// Copyright (c) 2017 Intel Corporation
-// 
+// Copyright (c) 2017-2018 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -248,9 +248,8 @@ mfxStatus VideoUSERPlugin::Check(const mfxHDL *in, mfxU32 in_num,
 (char)((mfxu32 >> 16) & 0xFF),\
 (char)((mfxu32 >> 24) & 0xFF)
 
-mfxStatus VideoUSERPlugin::QueryIOSurf(VideoCORE *core, mfxVideoParam *par, mfxFrameAllocRequest *in, mfxFrameAllocRequest *out)
+mfxStatus VideoUSERPlugin::QueryIOSurf(VideoCORE * /*core*/, mfxVideoParam *par, mfxFrameAllocRequest *in, mfxFrameAllocRequest *out)
 {
-    core;
     if (m_param.CodecId != par->mfx.CodecId)
     {
         //printf("ERROR: VideoUSERPlugin::QueryIOSurf, plugin_codec_id=%c%c%c%c, query_codec_id=%c%c%c%c\n", U32TOFOURCC(m_param.CodecId), U32TOFOURCC(par->mfx.CodecId));
@@ -260,21 +259,19 @@ mfxStatus VideoUSERPlugin::QueryIOSurf(VideoCORE *core, mfxVideoParam *par, mfxF
     return m_plugin.Video->QueryIOSurf(m_plugin.pthis, par, in, out);
 }
 
-mfxStatus VideoUSERPlugin::Query(VideoCORE *core, mfxVideoParam *in, mfxVideoParam *out)
+mfxStatus VideoUSERPlugin::Query(VideoCORE * /*core*/, mfxVideoParam *in, mfxVideoParam *out)
 {
-    core;
     if (m_param.CodecId != out->mfx.CodecId)
     {
         //printf("ERROR: VideoUSERPlugin::Query, plugin_codec_id=%c%c%c%c, query_codec_id=%c%c%c%c\n", U32TOFOURCC(m_param.CodecId), U32TOFOURCC(out->mfx.CodecId));
         return MFX_ERR_UNSUPPORTED;
     }
-    
+
     return m_plugin.Video->Query(m_plugin.pthis, in, out);
 }
 
-mfxStatus VideoUSERPlugin::DecodeHeader(VideoCORE *core, mfxBitstream *bs, mfxVideoParam *par)
+mfxStatus VideoUSERPlugin::DecodeHeader(VideoCORE * /*core*/, mfxBitstream *bs, mfxVideoParam *par)
 {
-    core;
     if (m_param.CodecId != par->mfx.CodecId)
     {
         return MFX_ERR_UNSUPPORTED;
@@ -398,29 +395,31 @@ mfxStatus VideoUSERPlugin::GetPayload(mfxU64 *ts, mfxPayload *payload) {
     return m_plugin.Video->GetPayload(m_plugin.pthis, ts, payload);
 }
 
+#ifdef _MSVC_LANG
 #pragma warning (disable: 4100)
+#endif
 
-mfxStatus VideoUSERPlugin::GetFrameParam(mfxFrameParam *par) {
-    return MFX_ERR_UNSUPPORTED;
-}
-
-mfxStatus VideoUSERPlugin::GetEncodeStat(mfxEncodeStat *stat) {
-    return MFX_ERR_UNSUPPORTED;
-}
-mfxStatus VideoUSERPlugin::GetDecodeStat(mfxDecodeStat *stat) {
-    return MFX_ERR_UNSUPPORTED;
-}
-mfxStatus VideoUSERPlugin::GetVPPStat(mfxVPPStat *stat) {
-    return MFX_ERR_UNSUPPORTED;
-}
-mfxStatus VideoUSERPlugin::SetSkipMode(mfxSkipMode mode) {
+mfxStatus VideoUSERPlugin::GetFrameParam(mfxFrameParam * /* par */) {
     return MFX_ERR_UNSUPPORTED;
 }
 
-mfxStatus VideoUSERPlugin::EncodeFrame(mfxEncodeCtrl *ctrl, mfxEncodeInternalParams *pInternalParams, mfxFrameSurface1 *surface, mfxBitstream *bs) {
+mfxStatus VideoUSERPlugin::GetEncodeStat(mfxEncodeStat * /* stat */) {
     return MFX_ERR_UNSUPPORTED;
 }
-mfxStatus VideoUSERPlugin::CancelFrame(mfxEncodeCtrl *ctrl, mfxEncodeInternalParams *pInternalParams, mfxFrameSurface1 *surface, mfxBitstream *bs) {
+mfxStatus VideoUSERPlugin::GetDecodeStat(mfxDecodeStat * /* stat */) {
+    return MFX_ERR_UNSUPPORTED;
+}
+mfxStatus VideoUSERPlugin::GetVPPStat(mfxVPPStat * /* stat */) {
+    return MFX_ERR_UNSUPPORTED;
+}
+mfxStatus VideoUSERPlugin::SetSkipMode(mfxSkipMode /* mode */) {
+    return MFX_ERR_UNSUPPORTED;
+}
+
+mfxStatus VideoUSERPlugin::EncodeFrame(mfxEncodeCtrl * /* ctrl */, mfxEncodeInternalParams * /* pInternalParams */, mfxFrameSurface1 * /* surface */, mfxBitstream * /* bs */) {
+    return MFX_ERR_UNSUPPORTED;
+}
+mfxStatus VideoUSERPlugin::CancelFrame(mfxEncodeCtrl * /* ctrl */, mfxEncodeInternalParams * /* pInternalParams */, mfxFrameSurface1 * /* surface */, mfxBitstream * /* bs */) {
     return MFX_ERR_UNSUPPORTED;
 }
 mfxStatus VideoUSERPlugin::EncFrame(mfxENCInput * /* in */, mfxENCOutput * /* out */)

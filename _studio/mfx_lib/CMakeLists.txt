@@ -27,7 +27,7 @@ set(MFX_ORIG_LDFLAGS "${MFX_LDFLAGS}" )
 ### CM
 include_directories( ${MSDK_LIB_ROOT}/cmrt_cross_platform/include )
 set( SRC_DIR "${MSDK_LIB_ROOT}/cmrt_cross_platform/src" )
-set( defs "${WARNING_FLAGS}" )
+set( defs "" )
 set( sources "" )
 set( sources.plus "" )
 file( GLOB_RECURSE srcs "${SRC_DIR}/*.c" "${SRC_DIR}/*.cpp" )
@@ -50,10 +50,9 @@ foreach( prefix ${MSDK_LIB_ROOT}/shared/src )
   )
 endforeach()
 
-set( defs "${WARNING_FLAGS}" )
+set( defs "" )
 make_library( mfx_common none static )
 append_property( mfx_common COMPILE_FLAGS " -DMFX_RT" )
-set( defs "" )
 
 foreach( prefix ${MSDK_LIB_ROOT}/shared/src )
   list( APPEND sources
@@ -67,15 +66,15 @@ foreach( prefix ${MSDK_LIB_ROOT}/shared/src )
   )
 endforeach()
 
-set( defs "${WARNING_FLAGS}" )
+set( defs "" )
 make_library( mfx_common hw static )
 append_property( mfx_common_hw COMPILE_FLAGS " -DMFX_RT" )
-set( defs "" )
 
 ### libmfxhw
 list( APPEND mdirs
   scheduler vpp decode/vc1
-  decode/mjpeg decode/h264 decode/mpeg2 cmrt_cross_platform encode_hw/h264 encode_hw/mpeg2 encode_hw/mjpeg
+  decode/mjpeg decode/h264 decode/mpeg2 cmrt_cross_platform
+  encode_hw/h265 encode_hw/h264 encode_hw/mpeg2 encode_hw/mjpeg
   decode/h265 decode/vp8 decode/vp9 mctf_package/mctf
   )
 include_directories( ${MSDK_LIB_ROOT}/fei/h264_common )
@@ -86,11 +85,12 @@ foreach( dir ${mdirs} )
   include_directories( ${MSDK_LIB_ROOT}/${dir}/include )
 endforeach()
 
+include_directories( ${MSDK_LIB_ROOT}/genx/field_copy/include )
 include_directories( ${MSDK_LIB_ROOT}/genx/copy_kernels/include )
 include_directories( ${MSDK_STUDIO_ROOT}/shared/asc/include )
 
 list( APPEND cdirs
-  brc h264_enc mpeg2_dec  vc1_dec vc1_common
+  brc h264_enc mpeg2_dec vc1_dec vp9_dec vc1_common
   )
 foreach( dir ${cdirs} )
   include_directories( ${MSDK_UMC_ROOT}/codec/${dir}/include )
@@ -122,6 +122,7 @@ foreach( prefix ${MSDK_LIB_ROOT}/shared/src )
     ${prefix}/mfx_brc_common.cpp
     ${prefix}/mfx_mpeg2_dec_common.cpp
     ${prefix}/mfx_vc1_dec_common.cpp
+    ${prefix}/mfx_vpx_dec_common.cpp
     #=================
   )
 endforeach()
@@ -137,19 +138,6 @@ foreach( prefix ${MSDK_STUDIO_ROOT}/shared/src )
     ${prefix}/mfx_umc_alloc_wrapper.cpp
     ${prefix}/mfx_static_assert_structs.cpp
     ${prefix}/mfx_mfe_adapter.cpp
-  )
-endforeach()
-foreach( prefix ${MSDK_LIB_ROOT}/genx/copy_kernels/src )
-  list( APPEND sources
-    ${prefix}/genx_cht_copy_isa.cpp
-    ${prefix}/genx_skl_copy_isa.cpp
-  )
-endforeach()
-
-foreach( prefix ${MSDK_LIB_ROOT}/genx/field_copy/src )
-  list( APPEND sources
-    ${prefix}/genx_fcopy_gen8_isa.cpp
-    ${prefix}/genx_fcopy_gen9_isa.cpp
   )
 endforeach()
 
@@ -168,23 +156,32 @@ else()
   set(MCTF_LIB "")
 endif()
 
+if( MFX_ENABLE_KERNELS )
+  set(GENX_LIB "genx")
+else()
+  set(GENX_LIB "")
+endif()
+
 set( LIBS "" )
 list( APPEND LIBS
-  mfx_trace_hw
   bitrate_control
   h264_dec_hw
+  h265_dec_hw
   jpeg_common
   jpeg_dec_hw
   mpeg2_dec_hw
+  vc1_common
+  vc1_dec_hw
+  vp8_dec_hw
+  vp9_dec_hw
   umc
   vm
   vm_plus
   umc_va_hw
   cmrt_cross_platform_hw
-  decode_hw
   encode_hw
   h264_la
-  genx_h264_encode_embeded
+  ${GENX_LIB}
   mfx_common
   mfx_common_hw
   asc
@@ -194,32 +191,27 @@ list( APPEND LIBS
   h264_preenc
   h264_enc
   h264_pak
-  vc1_common
-  vc1_dec_hw
-  umc_h265_hw
-  ${ITT_LIBS}
+  mfx_trace
+  ${ITT_LIBRARIES}
   pthread
   dl
 )
 
-set( defs "${defs} ${WARNING_FLAGS}" )
 make_library( ${mfxlibname} hw shared )
 make_library( mfxhw_static hw static )
 
 get_mfx_version(mfx_version_major mfx_version_minor)
-set (mfxlib_filename "lib${mfxlibname}-p.so.${mfx_version_major}.${mfx_version_minor}")
 
-#set_target_properties( ${mfxlibname} PROPERTIES
-#    LIBRARY_OUTPUT_NAME ${mfxlib_filename}
-#    SUFFIX "" )
+set_target_properties(${mfxlibname} PROPERTIES   VERSION ${mfx_version_major}.${mfx_version_minor})
+set_target_properties(${mfxlibname} PROPERTIES SOVERSION ${mfx_version_major})
 
-get_target_property(bindir ${mfxlibname} RUNTIME_OUTPUT_DIRECTORY) 
+install(TARGETS ${mfxlibname} LIBRARY DESTINATION ${MFX_MODULES_DIR})
 
-install( FILES ${bindir}/lib${mfxlibname}.so DESTINATION ${MFX_MODULES_DIR} RENAME ${mfxlib_filename} )
+#get_target_property(bindir ${mfxlibname} RUNTIME_OUTPUT_DIRECTORY) 
+
+# compatibility staff
 install( CODE "execute_process(
   COMMAND ${CMAKE_COMMAND} -E create_symlink
-  ${MFX_MODULES_DIR}/${mfxlib_filename}
-  ${MFX_MODULES_DIR}/lib${mfxlibname}.so )"
+  ${MFX_MODULES_DIR}/lib${mfxlibname}.so.${mfx_version_major}.${mfx_version_minor}
+  ${MFX_MODULES_DIR}/lib${mfxlibname}-p.so.${mfx_version_major}.${mfx_version_minor} )"
 )
-
-set( defs "" )
