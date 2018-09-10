@@ -1,15 +1,15 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -17,10 +17,12 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+
 #pragma once
-#ifndef _MCTF_COMMON_H_
-#define _MCTF_COMMON_H_
+
+#include <vector>
 #include "mfx_common.h"
+
 #ifndef MFX_ENABLE_MCTF_EXT
 // all internal logic is based on these constants
 // if they are not defined, the logic of all checks,
@@ -349,7 +351,7 @@ struct gpuFrameData {
         sc = tc = stc = 0;
         scene_idx = frame_number = noise_count = 0;
         noise_var = noise_sad = noise_sc = frame_sad = frame_sc = frame_Rs = frame_Cs = 0.0;
-        mfxMctfControl = IntMctfParams{ 0 };
+        mfxMctfControl = IntMctfParams{};
     }
 
 };
@@ -423,8 +425,6 @@ private:
     t_MCTF_SPDEN pMCTF_SpDen_func;
 
     CmDevice *device;
-    // if it is shared(passed from outside), don't destroy
-    bool IfCmDeviceShared;
     CmQueue*queue;
     CmTask *task;
     CmEvent
@@ -461,8 +461,7 @@ private:
         // from DefaultIdx2Out in the beginning and end;
         CurrentIdx2Out,
         deblocking_Control,
-        overlap_Motion,
-        accuracy_Level;
+        overlap_Motion;
     bool bitrate_Adaptation;
     MCTF_MODE m_AutoMode;
     MCTF_CONFIGURATION ConfigMode;
@@ -474,7 +473,7 @@ private:
     mfxI8 backward_distance,forward_distance;
     mfxU16 bth;
     std::unique_ptr<MeControlSmall> p_ctrl;
-    CmBuffer *ctrlBuf, *refsBuf;
+    CmBuffer *ctrlBuf;
     CmSurface2D *qpel1, *qpel2;
     CmSurface2DUP
         *mv_1,
@@ -485,7 +484,6 @@ private:
         *distSurf;
     SurfaceIndex
         *idxCtrl,
-        *idxRefBuf,
         *idxSrc,
         *idxRef1,
         *idxRef2,
@@ -517,12 +515,11 @@ private:
         *mvSys4,
         *noiseAnalysisSys,
         *distSys;
-    mfxF64 sequenceBitrate, bpp;
+    mfxF64 bpp;
     mfxU32 m_FrameRateExtN, m_FrameRateExtD;
     mfxU32 scene_numbers[5];
     mfxU64 time;
    
-    CM_STATUS status;
     mfxI32 res;
 
     std::vector<mfxU32> distRef;
@@ -538,7 +535,6 @@ private:
     //MC elements
     CmProgram
         *programMc,
-        *programMc2,
         *programDe;
     CmKernel
         *kernelNoise,
@@ -750,5 +746,3 @@ public:
 
     bool MCTF_ReadyToOutut() { return (AMCTF_READY == MctfState); };
 };
-
-#endif //_MCTF_COMMON_H_

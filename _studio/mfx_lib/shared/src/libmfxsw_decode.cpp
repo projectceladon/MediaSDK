@@ -1,5 +1,5 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -70,14 +70,13 @@
 #include "mfx_user_plugin.h"
 #endif
 
-
-VideoDECODE *CreateDECODESpecificClass(mfxU32 CodecId, VideoCORE *core, mfxSession session)
+template<>
+VideoDECODE* _mfxSession::Create<VideoDECODE>(mfxVideoParam& par)
 {
-    VideoDECODE *pDECODE = (VideoDECODE *) 0;
+    VideoDECODE* pDECODE = nullptr;
+    VideoCORE* core = m_pCORE.get();
     mfxStatus mfxRes = MFX_ERR_MEMORY_ALLOC;
-
-    // touch unreferenced parameter
-    session = session;
+    mfxU32 CodecId = par.mfx.CodecId;
 
     // create a codec instance
     switch (CodecId)
@@ -114,28 +113,15 @@ VideoDECODE *CreateDECODESpecificClass(mfxU32 CodecId, VideoCORE *core, mfxSessi
 
 #if defined(MFX_ENABLE_VP8_VIDEO_DECODE_HW)
     case MFX_CODEC_VP8:
-#if defined(MFX_ENABLE_VP8_VIDEO_DECODE_HW)
         pDECODE = new VideoDECODEVP8_HW(core, &mfxRes);
-#else // MFX_VA
-        pDECODE = new VideoDECODEVP8(core, &mfxRes);
-
-#endif // MFX_VA && MFX_ENABLE_VP8_VIDEO_DECODE_HW
-
         break;
 #endif
 
 #if defined(MFX_ENABLE_VP9_VIDEO_DECODE_HW)
      case MFX_CODEC_VP9:
-#if defined(MFX_ENABLE_VP9_VIDEO_DECODE_HW)
         pDECODE = new VideoDECODEVP9_HW(core, &mfxRes);
-#else // MFX_VA
-        pDECODE = new VideoDECODEVP9(core, &mfxRes);
-
-#endif // MFX_VA && MFX_ENABLE_VP9_VIDEO_DECODE_HW
-
         break;
 #endif
-
 
     default:
         break;
@@ -145,12 +131,11 @@ VideoDECODE *CreateDECODESpecificClass(mfxU32 CodecId, VideoCORE *core, mfxSessi
     if (MFX_ERR_NONE != mfxRes)
     {
         delete pDECODE;
-        pDECODE = (VideoDECODE *) 0;
+        pDECODE = nullptr;
     }
 
     return pDECODE;
-
-} // VideoDECODE *CreateDECODESpecificClass(mfxU32 CodecId, VideoCORE *core)
+}
 
 mfxStatus MFXVideoDECODE_Query(mfxSession session, mfxVideoParam *in, mfxVideoParam *out)
 {
@@ -441,7 +426,7 @@ mfxStatus MFXVideoDECODE_Init(mfxSession session, mfxVideoParam *par)
         if (!session->m_pDECODE.get())
         {
             // create a new instance
-            session->m_pDECODE.reset(CreateDECODESpecificClass(par->mfx.CodecId, session->m_pCORE.get(), session));
+            session->m_pDECODE.reset(session->Create<VideoDECODE>(*par));
             MFX_CHECK(session->m_pDECODE.get(), MFX_ERR_INVALID_VIDEO_PARAM);
         }
 
@@ -537,12 +522,9 @@ mfxStatus MFXVideoDECODE_DecodeFrameAsync(mfxSession session, mfxBitstream *bs, 
             task.priority = session->m_priority;
             task.threadingPolicy = session->m_pDECODE->GetThreadingPolicy();
             // fill dependencies
-// specific plug-in case to run additional task after main task
-#if !defined(AS_HEVCD_PLUGIN) && !defined(AS_VP8D_PLUGIN)
             task.pSrc[0] = *surface_out;
-#endif
             task.pDst[0] = *surface_out;
-            // this is wa to remove external task dependency for HEVC SW decode plugin. 
+            // this is wa to remove external task dependency for HEVC SW decode plugin.
             // need only because SW HEVC decode is pseudo
             {
                 mfxPlugin plugin;

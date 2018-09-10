@@ -38,6 +38,17 @@
 #include <string.h>
 
 typedef struct {
+
+    size_t GetHashCode() const
+    {
+        size_t hash = 0;
+        for (unsigned short i = 0; i < sizeof(*this) / (sizeof(size_t)); ++i)
+        {
+            hash |= i%2? *(reinterpret_cast<const size_t * >(this) + i) : (hash & *(reinterpret_cast<const size_t * >(this) + i));
+        }
+        return hash;
+    }
+
     unsigned long  Data1;
     unsigned short Data2;
     unsigned short Data3;
@@ -309,7 +320,8 @@ public:
                                mfxEncodeInternalParams *pInternalParams,
                                MFX_ENTRY_POINT *pEntryPoint)
     {
-        pEntryPoint = pEntryPoint;
+        (void)pEntryPoint;
+
         return EncodeFrameCheck(ctrl, surface, bs, reordered_surface, pInternalParams);
     }
     virtual
@@ -362,7 +374,12 @@ public:
                                mfxFrameSurface1 *surface_work,
                                mfxFrameSurface1 **surface_out,
                                MFX_ENTRY_POINT *pEntryPoint) = 0;
-    virtual mfxStatus SetSkipMode(mfxSkipMode mode) {mode=mode;return MFX_ERR_UNSUPPORTED;};
+    virtual mfxStatus SetSkipMode(mfxSkipMode mode)
+    {
+        (void)mode;
+
+        return MFX_ERR_UNSUPPORTED;
+    }
     virtual mfxStatus GetPayload(mfxU64 *ts, mfxPayload *payload) = 0;
 
 };
@@ -393,8 +410,9 @@ public:
                             mfxExtVppAuxData *aux,
                             MFX_ENTRY_POINT *pEntryPoint)
     {
-        pEntryPoint = pEntryPoint;
-        aux = aux;
+        (void)pEntryPoint;
+        (void)aux;
+
         return VppFrameCheck(in, out);
     }
 

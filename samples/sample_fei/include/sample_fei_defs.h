@@ -42,7 +42,7 @@ const mfxU16 MaxFeiEncMVPNum = 4;
 
 #define MSDK_ZERO_ARRAY(VAR, NUM) {memset(VAR, 0, sizeof(VAR[0])*NUM);}
 #define SAFE_RELEASE_EXT_BUFSET(SET) {if (SET){ SET->vacant = true; SET = NULL;}}
-#define SAFE_DEC_LOCKER(SURFACE){if (SURFACE && SURFACE->Data.Locked) {SURFACE->Data.Locked--;}}
+#define SAFE_DEC_LOCKER(SURFACE){if (SURFACE && SURFACE->Data.Locked) {msdk_atomic_dec16((volatile mfxU16*)&SURFACE->Data.Locked);}}
 #define SAFE_UNLOCK(SURFACE){if (SURFACE) {SURFACE->Data.Locked = 0;}}
 #define SAFE_FCLOSE_ERR(FPTR, ERR){ if (FPTR && fclose(FPTR)) { FPTR = NULL; return ERR; } else {FPTR = NULL;}}
 #define SAFE_FCLOSE(FPTR){ if (FPTR) { fclose(FPTR); FPTR = NULL; }}
@@ -299,6 +299,7 @@ struct AppConfig
         , NumRefActiveBL0(0)
         , NumRefActiveBL1(0)
         , bRefType(MFX_B_REF_UNKNOWN) // Let MSDK library to decide wheather to use B-pyramid or not
+        , bNoPtoBref(false)
         , nIdrInterval(0xffff)        // Infinite IDR interval
         , preencDSstrength(0)         // No Downsampling
         , bDynamicRC(false)
@@ -370,6 +371,7 @@ struct AppConfig
         , mbstatoutFile(NULL)
         , mbQpFile(NULL)
         , repackctrlFile(NULL)
+        , reconFile(NULL)
 #if (MFX_VERSION >= 1025)
         , repackstatFile(NULL)
         , numMfeFrames(0)
@@ -407,6 +409,7 @@ struct AppConfig
     mfxU16 NumRefActiveBL0;  // maximal number of backward references for B frames
     mfxU16 NumRefActiveBL1;  // maximal number of forward references for B frames
     mfxU16 bRefType;         // B-pyramid ON/OFF/UNKNOWN (default, let MSDK lib to decide)
+    bool   bNoPtoBref;       // disable prediction of P frames from reference B
     mfxU16 nIdrInterval;     // distance between IDR frames in GOPs
     mfxU8  preencDSstrength; // downsample input before passing to preenc (2/4/8x are supported)
     bool   bDynamicRC;
@@ -490,6 +493,7 @@ struct AppConfig
     msdk_char* mbstatoutFile;
     msdk_char* mbQpFile;
     msdk_char* repackctrlFile;
+    msdk_char* reconFile;
 #if (MFX_VERSION >= 1025)
     msdk_char* repackstatFile;
     mfxI32     numMfeFrames;
@@ -525,15 +529,11 @@ struct AppConfig
 };
 
 // B frame location struct for reordering
-
-template<class T> inline void Zero(T & obj) { memset(&obj, 0, sizeof(obj)); }
 struct BiFrameLocation
 {
-    BiFrameLocation() { Zero(*this); }
-
-    mfxU32 miniGopCount;    // sequence of B frames between I/P frames
-    mfxU32 encodingOrder;   // number within mini-GOP (in encoding order)
-    mfxU16 refFrameFlag;    // MFX_FRAMETYPE_REF if B frame is reference
+    mfxU32 miniGopCount  = 0; // sequence of B frames between I/P frames
+    mfxU32 encodingOrder = 0; // number within mini-GOP (in encoding order)
+    mfxU16 refFrameFlag  = 0; // MFX_FRAMETYPE_REF if B frame is reference
 };
 
 template<class T, mfxU32 N>
@@ -745,23 +745,22 @@ typedef FixedArray<mfxU8, 32>      ArrayU8x32;
 typedef FixedArray<mfxU8, 33>      ArrayU8x33;
 typedef FixedArray<mfxU32, 64>     ArrayU32x64;
 
-typedef Pair<mfxU8> PairU8;
+typedef Pair<mfxU8>  PairU8;
 typedef Pair<mfxI32> PairI32;
 
 struct DpbFrame
 {
-    DpbFrame() { Zero(*this); }
-
-    PairI32 m_poc;
-    mfxU32  m_frameOrder;
-    mfxU32  m_frameNum;
-    mfxI32  m_frameNumWrap;
-    PairI32 m_picNum;
-    mfxU32  m_frameIdx;
-    PairU8  m_longTermPicNum;
-    PairU8  m_refPicFlag;
-    mfxU8   m_longterm; // at least one field is a long term reference
-    mfxU8   m_refBase;
+    PairI32 m_poc            = {0, 0};
+    mfxU32  m_frameOrder     = 0;
+    mfxU32  m_frameNum       = 0;
+    mfxI32  m_frameNumWrap   = 0;
+    PairI32 m_picNum         = {0, 0};
+    mfxU32  m_frameIdx       = 0;
+    PairU8  m_longTermPicNum = {0, 0};
+    PairU8  m_refPicFlag     = {0, 0};
+    mfxU8   m_longterm       = 0;      // At least one field is a long term reference
+    mfxU8   m_refBase        = 0;
+    PairU8  m_type           = {0, 0}; // Type of first and second field
 };
 
 struct ArrayDpbFrame : public FixedArray<DpbFrame, 16>
@@ -807,7 +806,12 @@ inline mfxI32 GetPoc(ArrayDpbFrame const & dpb, mfxU8 ref)
 
 struct DecRefPicMarkingInfo
 {
-    DecRefPicMarkingInfo() { Zero(*this); }
+    DecRefPicMarkingInfo()
+        : no_output_of_prior_pics_flag(0)
+        , long_term_reference_flag(0)
+        , mmco(0)
+        , value(0)
+    {}
 
     void PushBack(mfxU8 op, mfxU32 param0, mfxU32 param1 = 0)
     {
@@ -816,8 +820,8 @@ struct DecRefPicMarkingInfo
         value.PushBack(param1);
     }
 
-    mfxU8       no_output_of_prior_pics_flag;
-    mfxU8       long_term_reference_flag;
+    mfxU8       no_output_of_prior_pics_flag = 0;
+    mfxU8       long_term_reference_flag     = 0;
     ArrayU8x32  mmco;       // memory management control operation id
     ArrayU32x64 value;      // operation-dependent data, max 2 per operation
 };

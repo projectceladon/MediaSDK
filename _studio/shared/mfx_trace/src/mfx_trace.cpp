@@ -1,15 +1,15 @@
-// Copyright (c) 2017 Intel Corporation
-// 
+// Copyright (c) 2017-2018 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -20,24 +20,15 @@
 
 #include "mfxdefs.h"
 #include "mfx_trace.h"
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= 1027)
 #include "mfxfeihevc.h"
-#endif
-
-#if (MFX_VERSION >= 1025)
-static mfx_reflect::AccessibleTypesCollection g_Reflection;
-#endif
-
-#if (MFX_VERSION >= 1025)
-mfx_reflect::AccessibleTypesCollection GetReflection()
-{
-    return g_Reflection;
-}
 #endif
 
 #ifdef MFX_TRACE_ENABLE
 
+#ifdef _MSVC_LANG
 #pragma warning(disable: 4127) // conditional expression is constant
+#endif
 
 extern "C"
 {
@@ -50,9 +41,7 @@ extern "C"
 #include <stdlib.h>
 #include <string.h>
 #include "vm_interlocked.h"
-#if (MFX_VERSION >= 1025)
 #include "mfx_reflect.h"
-#endif
 
 /*------------------------------------------------------------------------------*/
 
@@ -257,11 +246,10 @@ mfxTraceU32 MFXTrace_Init()
         return sts;
     }
 
-#if (MFX_VERSION >= 1025)
+#if defined(MFX_TRACE_ENABLE_REFLECT)
     if (g_OutputMode & (MFX_TRACE_OUTPUT_ETW | MFX_TRACE_OUTPUT_TEXTLOG))
     {
-        g_Reflection.DeclareMsdkStructs();
-        g_Reflection.m_bIsInitialized = true;
+        mfx_reflect::AccessibleTypesCollection::Initialize();
     }
 #endif
 

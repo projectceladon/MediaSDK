@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Intel Corporation
+// Copyright (c) 2017-2018 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,7 @@ public:
     }
 
     //Copy constructor
-    Array(Array &src)
+    Array(const Array &src)
     {
         m_pArray = (item_t *)0;
         m_numItems = 0;
@@ -198,7 +198,7 @@ protected:
         }
 
         // reset new items to zero
-        memset(pNewArray + i, 0, sizeof(item_t) * (sizeNew - i));
+        memset(reinterpret_cast<void*>(pNewArray + i), 0, sizeof(item_t) * (sizeNew - i));
 
         // set the pointer and size
         m_pArray = pNewArray;

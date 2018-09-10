@@ -1,15 +1,15 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -35,6 +35,13 @@
 #include "genx_bdw_simple_me_isa.h"
 #include "genx_skl_simple_me_isa.h"
 #include "genx_skl_histogram_isa.h"
+#include "genx_cnl_simple_me_isa.h"
+#include "genx_cnl_histogram_isa.h"
+#include "genx_icl_simple_me_isa.h"
+#include "genx_icl_histogram_isa.h"
+#include "genx_icllp_simple_me_isa.h"
+#include "genx_icllp_histogram_isa.h"
+
 
 namespace MfxHwH264EncodeHW
 {
@@ -842,6 +849,7 @@ void CmContext::Setup(
 
     switch (core->GetHWType())
     {
+#ifdef MFX_ENABLE_KERNELS
     case MFX_HW_BDW:
     case MFX_HW_CHT:
         m_program = ReadProgram(m_device, genx_bdw_simple_me, SizeOf(genx_bdw_simple_me));
@@ -853,6 +861,19 @@ void CmContext::Setup(
         m_program = ReadProgram(m_device, genx_skl_simple_me, SizeOf(genx_skl_simple_me));
         m_programHist = ReadProgram(m_device, genx_skl_histogram, SizeOf(genx_skl_histogram));
         break;
+    case MFX_HW_CNL:
+        m_program = ReadProgram(m_device, genx_cnl_simple_me, SizeOf(genx_cnl_simple_me));
+        m_programHist = ReadProgram(m_device, genx_cnl_histogram, SizeOf(genx_cnl_histogram));
+        break;
+    case MFX_HW_ICL:
+        m_program = ReadProgram(m_device, genx_icl_simple_me, SizeOf(genx_icl_simple_me));
+        m_programHist = ReadProgram(m_device, genx_icl_histogram, SizeOf(genx_icl_histogram));
+        break;
+    case MFX_HW_ICL_LP:
+        m_program = ReadProgram(m_device, genx_icllp_simple_me, SizeOf(genx_icllp_simple_me));
+        m_programHist = ReadProgram(m_device, genx_icllp_histogram, SizeOf(genx_icllp_histogram));
+        break;
+#endif
     default:
         throw CmRuntimeError();
     }
@@ -1158,7 +1179,7 @@ void CmContext::SetCurbeData(
     else*/ if (!transformFlag)
         skipVal /= 2;
 
-    mfxVMEUNIIn costs = {0};
+    mfxVMEUNIIn costs = {};
     SetCosts(costs, task.m_type[0], qp, intraSad, ftqBasedSkip);
 
     mfxVMEIMEIn spath;
@@ -1411,7 +1432,7 @@ void CmContext::SetCurbeData(
     else*/ if (!transformFlag)
         skipVal /= 2;
 
-    mfxVMEUNIIn costs = {0};
+    mfxVMEUNIIn costs = {};
     SetCosts(costs, frameType, qp, intraSad, ftqBasedSkip);
 
     mfxVMEIMEIn spath;

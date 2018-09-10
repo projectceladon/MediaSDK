@@ -1,15 +1,15 @@
-// Copyright (c) 2017 Intel Corporation
-// 
+// Copyright (c) 2017-2018 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -88,7 +88,6 @@ VAAPIVideoProcessing::VAAPIVideoProcessing():
 , m_procampFilterID(VA_INVALID_ID)
 , m_frcFilterID(VA_INVALID_ID)
 , m_deintFrameCount(0)
-, m_bFakeOutputEnabled(false)
 , m_frcCyclicCounter(0)
 , m_numFilterBufs(0)
 , m_primarySurface4Composition(NULL)
@@ -255,16 +254,11 @@ mfxStatus VAAPIVideoProcessing::Init(_mfxPlatformAccelerationService* pVADisplay
             return MFX_ERR_DEVICE_FAILED;
         }
 
-        // Configuration
-        VAConfigAttrib va_attributes;
-        vaSts = vaGetConfigAttributes(m_vaDisplay, VAProfileNone, VAEntrypointVideoProc, &va_attributes, 1);
-        MFX_CHECK_WITH_ASSERT(VA_STATUS_SUCCESS == vaSts, MFX_ERR_DEVICE_FAILED);
-
         vaSts = vaCreateConfig( m_vaDisplay,
                                 VAProfileNone,
                                 VAEntrypointVideoProc,
-                                &va_attributes,
-                                1,
+                                NULL,
+                                0,
                                 &m_vaConfig);
         MFX_CHECK_WITH_ASSERT(VA_STATUS_SUCCESS == vaSts, MFX_ERR_DEVICE_FAILED);
 
@@ -412,13 +406,13 @@ mfxStatus VAAPIVideoProcessing::QueryCapabilities(mfxVppCaps& caps)
         }
     }
 
-#ifdef MFX_ENABLE_VPP_ROTATION
     memset(&m_pipelineCaps,  0, sizeof(VAProcPipelineCaps));
     vaSts = vaQueryVideoProcPipelineCaps(m_vaDisplay,
                                  m_vaContextVPP,
                                  NULL,
                                  0,
                                  &m_pipelineCaps);
+#ifdef MFX_ENABLE_VPP_ROTATION
     MFX_CHECK_WITH_ASSERT(VA_STATUS_SUCCESS == vaSts, MFX_ERR_DEVICE_FAILED);
     if (m_pipelineCaps.rotation_flags & (1 << VA_ROTATION_90 ) &&
         m_pipelineCaps.rotation_flags & (1 << VA_ROTATION_180) &&
@@ -428,37 +422,66 @@ mfxStatus VAAPIVideoProcessing::QueryCapabilities(mfxVppCaps& caps)
     }
 #endif
 
-    /* NB! The code below should to be replaced with querying caps from driver*/
-#if defined(LINUX_TARGET_PLATFORM_BXTMIN) || defined(LINUX_TARGET_PLATFORM_BXT)
-    caps.uMaxWidth  = 8192;
-    caps.uMaxHeight = 8192;
-#else
-    caps.uMaxWidth  = 4096;
-    caps.uMaxHeight = 4096;
-#endif
+    if (m_pipelineCaps.max_output_width && m_pipelineCaps.max_output_height)
+    {
+        caps.uMaxWidth = m_pipelineCaps.max_output_width;
+        caps.uMaxHeight = m_pipelineCaps.max_output_height;
+    }
+    else
+    {
+        caps.uMaxWidth = 4096;
+        caps.uMaxHeight = 4096;
+    }
 
     caps.uFieldWeavingControl = 1;
 
     // [FourCC]
     // should be changed by libva support
-    for (mfxU32 indx = 0; indx < sizeof(g_TABLE_SUPPORTED_FOURCC)/sizeof(mfxU32); indx++)
+    for (auto fourcc : g_TABLE_SUPPORTED_FOURCC)
     {
-        if (MFX_FOURCC_NV12   == g_TABLE_SUPPORTED_FOURCC[indx] ||
-            MFX_FOURCC_YV12   == g_TABLE_SUPPORTED_FOURCC[indx] ||
-            MFX_FOURCC_YUY2   == g_TABLE_SUPPORTED_FOURCC[indx] ||
-            MFX_FOURCC_UYVY   == g_TABLE_SUPPORTED_FOURCC[indx] ||
-            MFX_FOURCC_RGB4   == g_TABLE_SUPPORTED_FOURCC[indx] ||
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
-            MFX_FOURCC_RGB565 == g_TABLE_SUPPORTED_FOURCC[indx] ||
+        // Mark supported input
+        switch(fourcc)
+        {
+        case MFX_FOURCC_NV12:
+        case MFX_FOURCC_YV12:
+        case MFX_FOURCC_YUY2:
+        case MFX_FOURCC_UYVY:
+        case MFX_FOURCC_RGB4:
+#if defined (MFX_ENABLE_FOURCC_RGB565)
+        case MFX_FOURCC_RGB565:
 #endif
-            MFX_FOURCC_P010   == g_TABLE_SUPPORTED_FOURCC[indx])
-            caps.mFormatSupport[g_TABLE_SUPPORTED_FOURCC[indx]] |= MFX_FORMAT_SUPPORT_INPUT;
+#if (MFX_VERSION >= 1027)
+        case MFX_FOURCC_AYUV:
+        case MFX_FOURCC_Y210:
+        case MFX_FOURCC_Y410:
+#endif
+        case MFX_FOURCC_P010:
+            caps.mFormatSupport[fourcc] |= MFX_FORMAT_SUPPORT_INPUT;
+            break;
+        default:
+            break;
+        }
 
-        if (MFX_FOURCC_NV12    == g_TABLE_SUPPORTED_FOURCC[indx] ||
-            MFX_FOURCC_YUY2    == g_TABLE_SUPPORTED_FOURCC[indx] ||
-            MFX_FOURCC_RGB4    == g_TABLE_SUPPORTED_FOURCC[indx] ||
-            MFX_FOURCC_A2RGB10 == g_TABLE_SUPPORTED_FOURCC[indx])
-            caps.mFormatSupport[g_TABLE_SUPPORTED_FOURCC[indx]] |= MFX_FORMAT_SUPPORT_OUTPUT;
+        // Mark supported output
+        switch(fourcc)
+        {
+        case MFX_FOURCC_NV12:
+        case MFX_FOURCC_YUY2:
+        case MFX_FOURCC_RGB4:
+#if (MFX_VERSION >= 1027)
+        case MFX_FOURCC_AYUV:
+        case MFX_FOURCC_Y210:
+        case MFX_FOURCC_Y410:
+#endif
+#ifdef MFX_ENABLE_RGBP
+        case MFX_FOURCC_RGBP:
+#endif
+        case MFX_FOURCC_P010:
+            caps.mFormatSupport[fourcc] |= MFX_FORMAT_SUPPORT_OUTPUT;
+            break;
+        default:
+            break;
+        }
     }
 
     caps.uMirroring = 1;
@@ -701,7 +724,7 @@ mfxStatus VAAPIVideoProcessing::Execute(mfxExecuteParams *pParams)
                         deint.flags = VA_DEINTERLACING_BOTTOM_FIELD_FIRST | VA_DEINTERLACING_BOTTOM_FIELD;
                 }
 
-                deint.flags |= 0x0010; // Use BOB when Scene Change occur.  There will be a special define in va_vpp.h
+                deint.flags |= VA_DEINTERLACING_SCD_ENABLE; // It forces BOB
             }
 
             vaSts = vaCreateBuffer(m_vaDisplay,
@@ -1042,6 +1065,12 @@ mfxStatus VAAPIVideoProcessing::Execute(mfxExecuteParams *pParams)
     switch (refFourcc)
     {
     case MFX_FOURCC_RGB4:
+#ifdef MFX_ENABLE_RGBP
+    case MFX_FOURCC_RGBP:
+#endif
+#if (MFX_VERSION >= MFX_VERSION_NEXT)
+    case MFX_FOURCC_RGB565:
+#endif
         m_pipelineParam[0].surface_color_standard = VAProcColorStandardNone;
         ENABLE_VPP_VIDEO_SIGNAL(m_pipelineParam[0].input_color_properties.color_range = VA_SOURCE_RANGE_FULL);
         break;
@@ -1056,6 +1085,12 @@ mfxStatus VAAPIVideoProcessing::Execute(mfxExecuteParams *pParams)
     switch (targetFourcc)
     {
     case MFX_FOURCC_RGB4:
+#ifdef MFX_ENABLE_RGBP
+    case MFX_FOURCC_RGBP:
+#endif
+#if (MFX_VERSION >= MFX_VERSION_NEXT)
+    case MFX_FOURCC_RGB565:
+#endif
         m_pipelineParam[0].output_color_standard = VAProcColorStandardNone;
         ENABLE_VPP_VIDEO_SIGNAL(m_pipelineParam[0].output_color_properties.color_range = VA_SOURCE_RANGE_FULL);
         break;
@@ -1452,7 +1487,6 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
     MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_HOTSPOTS, "VAAPIVideoProcessing::Execute_Composition_TiledVideoWall");
 
     VAStatus vaSts = VA_STATUS_SUCCESS;
-    VASurfaceAttrib attrib;
     std::vector<VABlendState> blend_state;
 
     MFX_CHECK_NULL_PTR1( pParams );
@@ -1464,7 +1498,6 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
     {
         return MFX_ERR_UNKNOWN;
     }
-    mfxU32 SampleCount = 1;
     mfxU32 layerCount = (mfxU32) pParams->fwdRefCount + 1;
 
     std::vector<m_tiledVideoWallParams> tilingParams;
@@ -1488,7 +1521,7 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
     for ( unsigned int i = 0; i < layerCount; i++)
     {
         mfxDrvSurface* pRefSurf = &(pParams->pRefSurfaces[i]);
-        VASurfaceID* srf = (VASurfaceID*)(pRefSurf->hdl.first);
+        VASurfaceID* srf        = (VASurfaceID*)(pRefSurf->hdl.first);
 
         m_pipelineParam[i].surface = *srf;
 
@@ -1517,6 +1550,19 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
                 break;
         }
 
+        if(pParams->VideoSignalInfo[i].enabled)
+        {
+            if(pParams->VideoSignalInfo[i].TransferMatrix != MFX_TRANSFERMATRIX_UNKNOWN)
+            {
+                m_pipelineParam[i].surface_color_standard = (MFX_TRANSFERMATRIX_BT709 == pParams->VideoSignalInfo[i].TransferMatrix) ? VAProcColorStandardBT709 : VAProcColorStandardBT601;
+            }
+
+            if(pParams->VideoSignalInfo[i].NominalRange != MFX_NOMINALRANGE_UNKNOWN)
+            {
+                m_pipelineParam[i].input_color_properties.color_range = (MFX_NOMINALRANGE_0_255 == pParams->VideoSignalInfo[i].NominalRange) ? VA_SOURCE_RANGE_FULL : VA_SOURCE_RANGE_REDUCED;
+            }
+        }
+
         switch (pRefSurf->frameInfo.PicStruct)
         {
             case MFX_PICSTRUCT_PROGRESSIVE:
@@ -1532,19 +1578,19 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
 
         /* to process input parameters of sub stream:
          * crop info and original size*/
-        mfxFrameInfo *inInfo = &(pRefSurf->frameInfo);
-        input_region[i].y       = inInfo->CropY;
-        input_region[i].x       = inInfo->CropX;
-        input_region[i].height     = inInfo->CropH;
-        input_region[i].width      = inInfo->CropW;
+        mfxFrameInfo *inInfo              = &(pRefSurf->frameInfo);
+        input_region[i].y                 = inInfo->CropY;
+        input_region[i].x                 = inInfo->CropX;
+        input_region[i].height            = inInfo->CropH;
+        input_region[i].width             = inInfo->CropW;
         m_pipelineParam[i].surface_region = &input_region[i];
 
         /* to process output parameters of sub stream:
          *  position and destination size */
-        output_region[i].y      = pParams->dstRects[i].DstY;
-        output_region[i].x       = pParams->dstRects[i].DstX;
-        output_region[i].height    = pParams->dstRects[i].DstH;
-        output_region[i].width  = pParams->dstRects[i].DstW;
+        output_region[i].y               = pParams->dstRects[i].DstY;
+        output_region[i].x               = pParams->dstRects[i].DstX;
+        output_region[i].height          = pParams->dstRects[i].DstH;
+        output_region[i].width           = pParams->dstRects[i].DstW;
         m_pipelineParam[i].output_region = &output_region[i];
 
         mfxU32 currTileId = pParams->dstRects[i].TileId;
@@ -1601,8 +1647,6 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
             m_pipelineParam[i].blend_state = &blend_state[i];
         }
 
-        m_pipelineParam[i].pipeline_flags |= VA_PROC_PIPELINE_SUBPICTURES;
-
 #if defined(LINUX_TARGET_PLATFORM_BXT) || defined(LINUX_TARGET_PLATFORM_BXTMIN)
         m_pipelineParam[i].pipeline_flags |= VA_PROC_PIPELINE_SUBPICTURES;
         m_pipelineParam[i].filter_flags   |= VA_FILTER_SCALING_HQ;
@@ -1623,7 +1667,7 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
     }
 
     VASurfaceID *outputSurface = (VASurfaceID*)(pParams->targetSurface.hdl.first);
-    VAProcPipelineParameterBuffer outputparam = {0};
+    VAProcPipelineParameterBuffer outputparam = {};
     VABufferID vpp_pipeline_outbuf = VA_INVALID_ID;
 
     MFX_CHECK_NULL_PTR1(outputSurface);
@@ -1643,7 +1687,7 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
         // The targerRect.width and targerRect.height here actually storing the x2 and y2
         // value. Deduct x and y respectively to get the exact targerRect.width and
         // targerRect.height
-        tilingParams[currTile].targerRect.width -= tilingParams[currTile].targerRect.x;
+        tilingParams[currTile].targerRect.width  -= tilingParams[currTile].targerRect.x;
         tilingParams[currTile].targerRect.height -= tilingParams[currTile].targerRect.y;
 
         outputparam.output_region  = &tilingParams[currTile].targerRect;
@@ -1693,7 +1737,7 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
 
         ExtVASurface currentFeedback; // {surface & number_of_task}
         currentFeedback.surface = *outputSurface;
-        currentFeedback.number = pParams->statusReportID;
+        currentFeedback.number  = pParams->statusReportID;
         m_feedbackCache.push_back(currentFeedback);
     }
 
@@ -2000,7 +2044,6 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition(mfxExecuteParams *pParams)
     for( refIdx = 1; refIdx <= (refCount + 1); refIdx++ )
     {
         /*for frames 8, 15, 22, 29,... */
-        unsigned int uLastPass = (refCount + 1) - ( (refIdx /7) *7);
         if ((refIdx != 1) && ((refIdx %7) == 1) )
         {
             {
@@ -2228,8 +2271,6 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition(mfxExecuteParams *pParams)
 
 mfxStatus VAAPIVideoProcessing::QueryTaskStatus(mfxU32 taskIndex)
 {
-    VAStatus vaSts;
-
     VASurfaceID waitSurface = VA_INVALID_SURFACE;
     mfxU32 indxSurf = 0;
 
@@ -2257,7 +2298,7 @@ mfxStatus VAAPIVideoProcessing::QueryTaskStatus(mfxU32 taskIndex)
 #if !defined(ANDROID)
     {
         MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_EXTCALL, "vaSyncSurface");
-        vaSts = vaSyncSurface(m_vaDisplay, waitSurface);
+        VAStatus vaSts = vaSyncSurface(m_vaDisplay, waitSurface);
         if (vaSts == VA_STATUS_ERROR_HW_BUSY)
             return MFX_ERR_GPU_HANG;
         else

@@ -1,4 +1,4 @@
-# Copyright (c) 2017 Intel Corporation
+# Copyright (c) 2018 Intel Corporation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,17 +25,17 @@ set_property( GLOBAL PROPERTY PROP_PLUGINS_EVAL_CFG "" )
 
 # .....................................................
 function( collect_oses )
-  if( ${CMAKE_SYSTEM_NAME} MATCHES Windows )
+  if( CMAKE_SYSTEM_NAME MATCHES Windows )
     set( Windows    true PARENT_SCOPE )
     set( NotLinux   true PARENT_SCOPE )
     set( NotDarwin  true PARENT_SCOPE )
 
-  elseif( ${CMAKE_SYSTEM_NAME} MATCHES Linux )
+  elseif( CMAKE_SYSTEM_NAME MATCHES Linux )
     set( Linux      true PARENT_SCOPE )
     set( NotDarwin  true PARENT_SCOPE )
     set( NotWindows true PARENT_SCOPE )
 
-  elseif( ${CMAKE_SYSTEM_NAME} MATCHES Darwin )
+  elseif( CMAKE_SYSTEM_NAME MATCHES Darwin )
     set( Darwin     true PARENT_SCOPE )
     set( NotLinux   true PARENT_SCOPE )
     set( NotWindows true PARENT_SCOPE )
@@ -46,17 +46,6 @@ endfunction()
 # .....................................................
 function( append what where )
   set(${ARGV1} "${ARGV0} ${${ARGV1}}" PARENT_SCOPE)
-endfunction()
-
-# .....................................................
-function( create_build )
-  file( GLOB_RECURSE components "${CMAKE_SOURCE_DIR}/*/CMakeLists.txt" )
-  foreach( component ${components} )
-    get_filename_component( path ${component} PATH )
-    if(NOT path MATCHES ".*/deprecated/.*")
-      add_subdirectory( ${path} )
-    endif()
-  endforeach()
 endfunction()
 
 # .....................................................
@@ -218,7 +207,7 @@ function( make_library name variant type )
       target_link_libraries( ${target} ${lib} )
     endforeach()
 
-    set_target_properties( ${target} PROPERTIES LINK_INTERFACE_LIBRARIES "" )
+#    set_target_properties( ${target} PROPERTIES LINK_INTERFACE_LIBRARIES "" )
   endif()
 
   configure_build_variant( ${target} ${ARGV1} )
@@ -272,8 +261,6 @@ function( make_executable name variant )
   if( sources.plus )
     list( APPEND sources ${sources.plus} )
   endif()
-
-  project( ${target} )
 
   add_executable( ${target} ${include} ${sources} )
 
@@ -357,6 +344,7 @@ function( git_describe git_commit )
     COMMAND git rev-parse --short HEAD
     OUTPUT_VARIABLE git_commit
     OUTPUT_STRIP_TRAILING_WHITESPACE
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   )
   if( NOT ${git_commit} MATCHES "^$" )
     set( git_commit ".${git_commit}" PARENT_SCOPE )
