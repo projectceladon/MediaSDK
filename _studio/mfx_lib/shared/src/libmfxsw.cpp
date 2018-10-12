@@ -46,37 +46,12 @@ void* g_hModule = NULL; // DLL handle received in DllMain
 #define MFX_PRODUCT_VERSION "0.0.000.0000"
 #endif
 
-// Copyright strings
 #if defined(mfxhw64_EXPORTS) || defined(mfxhw32_EXPORTS) || defined(mfxsw64_EXPORTS) || defined(mfxsw32_EXPORTS)
-
-#if defined(LINUX_TARGET_PLATFORM_BDW)
 const char* g_MfxProductName = "mediasdk_product_name: Intel(R) Media SDK";
-#elif defined(LINUX_TARGET_PLATFORM_BXT) || defined (LINUX_TARGET_PLATFORM_BXTMIN)
-const char* g_MfxProductName = "mediasdk_product_name: Intel(R) Media SDK for Embedded Linux";
-#else
-const char* g_MfxProductName = "mediasdk_product_name: Intel(R) Media SDK";
-#endif
-
-const char* g_MfxCopyright = "mediasdk_copyright: Copyright(c) 2018 Intel Corporation";
+const char* g_MfxCopyright = "mediasdk_copyright: Copyright(c) 2011-2018 Intel Corporation";
 const char* g_MfxFileVersion = "mediasdk_file_version: " MFX_FILE_VERSION;
 const char* g_MfxProductVersion = "mediasdk_product_version: " MFX_PRODUCT_VERSION;
-
-#endif // mfxhwXX_EXPORTS
-
-#if defined(mfxaudiosw64_EXPORTS) || defined(mfxaudiosw32_EXPORTS)
-#if defined(LINUX_TARGET_PLATFORM_BDW)
-const char* g_MfxProductName = "mediasdk_product_name: Intel(R) Media SDK - Audio for Linux*";
-#elif defined(LINUX_TARGET_PLATFORM_BXT) || defined (LINUX_TARGET_PLATFORM_BXTMIN)
-const char* g_MfxProductName = "mediasdk_product_name: Intel(R) Media SDK for Embedded Linux";
-#else
-const char* g_MfxProductName = "mediasdk_product_name: Intel(R) Media SDK - Audio for Linux*";
 #endif
-
-const char* g_MfxCopyright = "mediasdk_copyright: Copyright(c) 2014-2018 Intel Corporation";
-const char* g_MfxFileVersion = "mediasdk_file_version: " MFX_FILE_VERSION;
-const char* g_MfxProductVersion = "mediasdk_product_version: " MFX_PRODUCT_VERSION;
-
-#endif // mfxaudioswXX_EXPORTS
 
 #if defined(ANDROID)
 const char* g_MfxProductName = "mediasdk_product_name: Intel(R) Media SDK 2018 for Android";
@@ -125,7 +100,14 @@ mfxStatus MFXInitEx(mfxInitParam par, mfxSession *session)
     MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_API, "MFXInit");
     MFX_LTRACE_1(MFX_TRACE_LEVEL_API, "^ModuleHandle^libmfx=", "%p", g_hModule);
 
-        // check error(s)
+    // check the library version
+    if ((MFX_VERSION_MAJOR != par.Version.Major) ||
+        (MFX_VERSION_MINOR < par.Version.Minor))
+    {
+        return MFX_ERR_UNSUPPORTED;
+    }
+
+    // check error(s)
     if ((MFX_IMPL_AUTO != impl) &&
         (MFX_IMPL_AUTO_ANY != impl) &&
         (MFX_IMPL_HARDWARE_ANY != impl) &&
@@ -186,18 +168,7 @@ mfxStatus MFXInitEx(mfxInitParam par, mfxSession *session)
         mfxInitParam init_param = par;
         init_param.Implementation = implInterface;
 
-        //mfxRes = pSession->Init(implInterface, &par.Version);
         mfxRes = pSession->InitEx(init_param);
-
-        // check the library version
-        MFXQueryVersion(pSession, &libver);
-
-        // check the numbers
-        if ((libver.Major != par.Version.Major) ||
-            (libver.Minor < par.Version.Minor))
-        {
-            mfxRes = MFX_ERR_UNSUPPORTED;
-        }
     }
     catch(MFX_CORE_CATCH_TYPE)
     {

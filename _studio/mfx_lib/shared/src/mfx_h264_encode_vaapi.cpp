@@ -54,7 +54,7 @@ static mfxU8 ConvertMfxFrameType2VaapiSliceType(mfxU8 type)
     }
 }
 
-mfxU8 ConvertRateControlMFX2VAAPI(mfxU8 rateControl)
+uint32_t ConvertRateControlMFX2VAAPI(mfxU8 rateControl)
 {
     switch (rateControl)
     {
@@ -62,10 +62,10 @@ mfxU8 ConvertRateControlMFX2VAAPI(mfxU8 rateControl)
     case MFX_RATECONTROL_VBR:  return VA_RC_VBR;
     case MFX_RATECONTROL_AVBR: return VA_RC_VBR;
     case MFX_RATECONTROL_CQP:  return VA_RC_CQP;
+    case MFX_RATECONTROL_ICQ:  return VA_RC_ICQ;
     default: assert(!"Unsupported RateControl"); return 0;
     }
-
-} // mfxU8 ConvertRateControlMFX2VAAPI(mfxU8 rateControl)
+}
 
 VAProfile ConvertProfileTypeMFX2VAAPI(mfxU32 type)
 {
@@ -200,6 +200,9 @@ mfxStatus SetRateControl(
 
     rate_param->min_qp = minQP;
     rate_param->max_qp = maxQP;
+
+    if (par.mfx.RateControlMethod == MFX_RATECONTROL_ICQ)
+        rate_param->ICQ_quality_factor = par.mfx.ICQQuality;
 
     if(par.calcParam.maxKbps)
         rate_param->target_percentage = (unsigned int)(100.0 * (mfxF64)par.calcParam.targetKbps / (mfxF64)par.calcParam.maxKbps);
@@ -1397,6 +1400,8 @@ mfxStatus VAAPIEncoder::CreateAuxilliaryDevice(
 
     m_caps.VCMBitrateControl =
         (attrs[idx_map[VAConfigAttribRateControl]].value & VA_RC_VCM) ? 1 : 0; //Video conference mode
+    m_caps.ICQBRCSupport =
+        (attrs[idx_map[VAConfigAttribRateControl]].value & VA_RC_ICQ) ? 1 : 0;
     m_caps.TrelisQuantization =
         (attrs[idx_map[VAConfigAttribEncQuantization]].value & (~VA_ATTRIB_NOT_SUPPORTED)) ? 1 : 0;
     m_caps.vaTrellisQuantization =
@@ -1582,7 +1587,7 @@ mfxStatus VAAPIEncoder::CreateAccelerationService(MfxVideoParam const & par)
     if ((attrib[0].value & VA_RT_FORMAT_YUV420) == 0)
         return MFX_ERR_DEVICE_FAILED;
 
-    mfxU8 vaRCType = ConvertRateControlMFX2VAAPI(par.mfx.RateControlMethod);
+    uint32_t vaRCType = ConvertRateControlMFX2VAAPI(par.mfx.RateControlMethod);
 
     mfxExtCodingOption2 const *extOpt2 = GetExtBuffer(par);
     if( NULL == extOpt2 )
