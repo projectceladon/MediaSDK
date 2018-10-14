@@ -1917,9 +1917,9 @@ mfxStatus MfxHwH264Encode::CheckVideoParam(
 
     if (IsMvcProfile(par.mfx.CodecProfile))
     {
-        mfxExtCodingOption * extOpt = GetExtBuffer(par);
+        mfxExtCodingOption & extOpt = GetExtBufferRef(par);
         mfxExtMVCSeqDesc * extMvc   = GetExtBuffer(par);
-        sts = CheckAndFixMVCSeqDesc(extMvc, extOpt->ViewOutput == MFX_CODINGOPTION_ON);
+        sts = CheckAndFixMVCSeqDesc(extMvc, extOpt.ViewOutput == MFX_CODINGOPTION_ON);
         if (MFX_WRN_INCOMPATIBLE_VIDEO_PARAM == sts)
         {
             checkSts = sts;
@@ -2409,6 +2409,7 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
        par.mfx.RateControlMethod != MFX_RATECONTROL_CBR &&
        par.mfx.RateControlMethod != MFX_RATECONTROL_VBR &&
        par.mfx.RateControlMethod != MFX_RATECONTROL_CQP &&
+       par.mfx.RateControlMethod != MFX_RATECONTROL_ICQ &&
        !bRateControlLA(par.mfx.RateControlMethod))
     {
         unsupported = true;
@@ -5208,17 +5209,17 @@ void MfxHwH264Encode::InheritDefaultValues(
 
 
 
-    mfxExtBRC*   extBRCInit       = GetExtBuffer(parInit);
-    mfxExtBRC*   extBRCReset      = GetExtBuffer(parReset);
+    mfxExtBRC & extBRCInit  = GetExtBufferRef(parInit);
+    mfxExtBRC & extBRCReset = GetExtBufferRef(parReset);
 
-    if (!extBRCReset->pthis &&
-        !extBRCReset->Init &&
-        !extBRCReset->Reset &&
-        !extBRCReset->Close &&
-        !extBRCReset->GetFrameCtrl &&
-        !extBRCReset->Update)
+    if (!extBRCReset.pthis &&
+        !extBRCReset.Init &&
+        !extBRCReset.Reset &&
+        !extBRCReset.Close &&
+        !extBRCReset.GetFrameCtrl &&
+        !extBRCReset.Update)
     {
-        *extBRCReset = *extBRCInit;
+        extBRCReset = extBRCInit;
     }
 
 
@@ -8797,14 +8798,14 @@ namespace
         std::vector<mfxExtSpsHeader> &      sps,
         std::vector<mfxExtPpsHeader> &      pps)
     {
-        mfxExtSpsHeader const *  extSps = GetExtBuffer(par);
-        mfxExtPpsHeader const *  extPps = GetExtBuffer(par);
+        mfxExtSpsHeader const & extSps = GetExtBufferRef(par);
+        mfxExtPpsHeader const & extPps = GetExtBufferRef(par);
 
-        mfxU16 numViews  = extSps->profileIdc == MFX_PROFILE_AVC_STEREO_HIGH ? 2 : 1;
-        mfxU16 heightMul = 2 - extSps->frameMbsOnlyFlag;
+        mfxU16 numViews  = extSps.profileIdc == MFX_PROFILE_AVC_STEREO_HIGH ? 2 : 1;
+        mfxU16 heightMul = 2 - extSps.frameMbsOnlyFlag;
 
         // prepare sps for base layer
-        sps[0] = *extSps;
+        sps[0] = extSps;
         sps[0].picWidthInMbsMinus1       = par.mfx.FrameInfo.Width / 16 - 1;
         sps[0].picHeightInMapUnitsMinus1 = par.mfx.FrameInfo.Height / 16 / heightMul - 1;
 
@@ -8817,8 +8818,8 @@ namespace
             // Second SPS will be re-packed to SubsetSPS after return from driver.
             for (mfxU16 view = 0; view < numViews; view++)
             {
-                sps[view] = *extSps;
-                pps[view] = *extPps;
+                sps[view] = extSps;
+                pps[view] = extPps;
 
                 if (numViews > 1 && view == 0) // MVC base view
                     sps[view].profileIdc = MFX_PROFILE_AVC_HIGH;
@@ -8831,7 +8832,7 @@ namespace
         }
 
 
-        pps[0] = *extPps;
+        pps[0] = extPps;
 
     }
 };
@@ -9037,7 +9038,9 @@ void WritePredWeightTable(
     mfxU32              chromaArrayType)
 {
     // Transform field parity to field number before buffer request (PWT attached according to field order, not parity)
-    const mfxExtPredWeightTable* pPWT = GetExtBuffer(task.m_ctrl, task.m_fid[fieldId]);
+    // However in case of FEI single field mode, only one buffer is attached.
+    mfxU32 fieldNum = task.m_singleFieldMode ? 0 : task.m_fid[fieldId];
+    const mfxExtPredWeightTable* pPWT = GetExtBuffer(task.m_ctrl, fieldNum);
 
     if (!pPWT)
         pPWT = &task.m_pwt[fieldId];
