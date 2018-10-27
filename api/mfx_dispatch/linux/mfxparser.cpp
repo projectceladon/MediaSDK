@@ -32,14 +32,14 @@ namespace MFX {
 static bool parseGUID(const char* src, mfxPluginUID* uid)
 {
     mfxPluginUID plugin_uid{};
-    mfxU8* p = uid->Data;
+    mfxU8* p = plugin_uid.Data;
 
     int res = sscanf(src,
         "%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx",
         p, p + 1, p + 2, p + 3, p + 4, p + 5, p + 6, p + 7, 
         p + 8, p + 9, p + 10, p + 11, p + 12, p + 13, p + 14, p + 15);
 
-    if (res != sizeof(uid)) {
+    if (res != sizeof(uid->Data)) {
         return false;
     }
 
@@ -83,7 +83,6 @@ void PluginInfo::Load(char* name, char* value)
         }
         if (strlen(m_path) + strlen("/") + strlen(value) >= PATH_MAX)
             return;
-        strcpy(m_path + strlen(m_path), "/"); // TODO: looks to be wrong
         strcpy(m_path + strlen(m_path), value);
         m_parsed |= PARSED_PATH;
     } else if (0 == strcmp(name, "Default")) {
@@ -167,6 +166,11 @@ void parse(const char* file_name, std::list<PluginInfo>& plugins)
       }
     }
   }
+
+  if (plg.isValid()) {
+      plugins.push_back(std::move(plg));
+  }
+
   fclose(file);
 
   //print(plugins); // for debug
