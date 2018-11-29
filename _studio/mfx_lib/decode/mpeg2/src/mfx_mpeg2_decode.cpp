@@ -546,7 +546,7 @@ mfxStatus VideoDECODEMPEG2::Reset(mfxVideoParam *par)
     mfxExtOpaqueSurfaceAlloc *pOpqExt = (mfxExtOpaqueSurfaceAlloc *)GetExtendedBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_OPAQUE_SURFACE_ALLOCATION);
     if (pOpqExt)
     {
-        if (false == internalImpl->m_isOpaqueMemory)
+        if (false == internalImpl->IsOpaqueMemory())
         {
             // decoder was not initialized with opaque extended buffer
             return MFX_ERR_INCOMPATIBLE_VIDEO_PARAM;
@@ -608,21 +608,17 @@ mfxStatus VideoDECODEMPEG2::GetUserData(mfxU8 *ud, mfxU32 *sz, mfxU64 *ts, mfxU1
 {
     MFX_CHECK_NULL_PTR3(ud, sz, ts);
 
-    UMC::Status umcSts = UMC::UMC_OK;
-
-    umcSts = internalImpl->m_implUmc->GetCCData(ud, sz, ts, bufsize);
+    mfxF64 fts;
+    UMC::Status umcSts = internalImpl->m_implUmc->GetCCData(ud, sz, fts, bufsize);
 
     if (UMC::UMC_OK == umcSts)
     {
-        // we store pts in float
-        mfxF64 pts;
-
-        memcpy_s(&pts, sizeof(mfxF64), ts, sizeof(mfxF64));
-
-        *ts = GetMfxTimeStamp(pts);
+        *ts = GetMfxTimeStamp(fts);
 
         return MFX_ERR_NONE;
     }
+
+    *ts = 0;
 
     if (UMC::UMC_ERR_NOT_ENOUGH_BUFFER == umcSts)
     {
@@ -870,7 +866,7 @@ mfxStatus VideoDECODEMPEG2::DecodeHeader(VideoCORE * /*core*/, mfxBitstream* bs,
                     size += 9;
             }
 
-            memcpy_s(spspps->SPSBuffer, size, pShStart, size);
+            std::copy(pShStart, pShStart + size, spspps->SPSBuffer);
             spspps->SPSBufSize = size;
         }
 
@@ -1016,7 +1012,7 @@ mfxStatus VideoDECODEMPEG2::Query(VideoCORE *core, mfxVideoParam *in, mfxVideoPa
 
         mfxExtBuffer **pExtBuffer = out->ExtParam;
         mfxU16 numDistBuf = out->NumExtParam;
-        memcpy_s(out, sizeof(mfxVideoParam), in, sizeof(mfxVideoParam));
+        *out = *in;
 
         if (in->AsyncDepth == 0)
             out->AsyncDepth = 3;
@@ -1361,7 +1357,7 @@ mfxStatus VideoDECODEMPEG2::DecodeFrameCheck(mfxBitstream *bs,
         return MFX_ERR_NOT_INITIALIZED;
     }
 
-    if (true == internalImpl->m_isOpaqueMemory)
+    if (true == internalImpl->IsOpaqueMemory())
     {
         if (surface_work->Data.MemId || surface_work->Data.Y || surface_work->Data.R || surface_work->Data.A || surface_work->Data.UV) // opaq surface
             return MFX_ERR_UNDEFINED_BEHAVIOR;
@@ -1759,7 +1755,7 @@ mfxStatus VideoDECODEMPEG2InternalBase::QueryIOSurfInternal(VideoCORE *core, mfx
         }
     }
 
-    memcpy_s(&(request->Info), sizeof(mfxFrameInfo), &(par->mfx.FrameInfo), sizeof(mfxFrameInfo));
+    request->Info = par->mfx.FrameInfo;
 
     // output color format is NV12
     request->Info.FourCC = MFX_FOURCC_NV12;
@@ -1821,7 +1817,7 @@ mfxStatus VideoDECODEMPEG2InternalBase::AllocFrames(mfxVideoParam *par)
         allocResponse.NumFrameActual = allocRequest.NumFrameSuggested;
 
         mfxStatus mfxSts;
-        if (m_isOpaqueMemory)
+        if (pOpqExt)
         {
             mfxSts  = m_pCore->AllocFrames(&allocRequest,
                                            &allocResponse,
@@ -1859,16 +1855,15 @@ mfxStatus VideoDECODEMPEG2InternalBase::AllocFrames(mfxVideoParam *par)
 
 mfxStatus VideoDECODEMPEG2InternalBase::GetVideoParam(mfxVideoParam *par)
 {
-    par->IOPattern = m_vPar.IOPattern;
-    par->mfx       = m_vPar.mfx;
-    par->Protected = m_vPar.Protected;
-    par->AsyncDepth = m_vPar.AsyncDepth;
-    par->mfx.FrameInfo.AspectRatioW = m_vPar.mfx.FrameInfo.AspectRatioW;
-    par->mfx.FrameInfo.AspectRatioH = m_vPar.mfx.FrameInfo.AspectRatioH;
-    par->mfx.FrameInfo.FrameRateExtD = m_vPar.mfx.FrameInfo.FrameRateExtD;
-    par->mfx.FrameInfo.FrameRateExtN = m_vPar.mfx.FrameInfo.FrameRateExtN;
+    MFX_CHECK_NULL_PTR1(par);
 
-    mfxExtCodingOptionSPSPPS *spspps = (mfxExtCodingOptionSPSPPS *) GetExtendedBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_CODING_OPTION_SPSPPS);
+    par->AllocId    = m_vPar.AllocId;
+    par->AsyncDepth = m_vPar.AsyncDepth;
+    par->mfx        = m_vPar.mfx;
+    par->Protected  = m_vPar.Protected;
+    par->IOPattern  = m_vPar.IOPattern;
+
+    auto *spspps = reinterpret_cast<mfxExtCodingOptionSPSPPS *>(GetExtendedBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_CODING_OPTION_SPSPPS));
 
     if (spspps && spspps->SPSBuffer)
     {
@@ -1877,15 +1872,14 @@ mfxStatus VideoDECODEMPEG2InternalBase::GetVideoParam(mfxVideoParam *par)
             return ConvertUMCStatusToMfx(sts);
     }
 
-    // get signal info buffer
-    mfxExtVideoSignalInfo *signal_info = (mfxExtVideoSignalInfo *) GetExtendedBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_VIDEO_SIGNAL_INFO);
+    auto *signal_info = reinterpret_cast<mfxExtVideoSignalInfo *>(GetExtendedBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_VIDEO_SIGNAL_INFO));
+
     if (signal_info)
     {
-        m_implUmc->GetSignalInfoInformation(signal_info);
+        UMC::Status sts = m_implUmc->GetSignalInfoInformation(signal_info);
+        if (UMC::UMC_OK != sts)
+            return ConvertUMCStatusToMfx(sts);
     }
-
-    memcpy_s(par->reserved,sizeof(m_vPar.reserved),m_vPar.reserved,sizeof(m_vPar.reserved));
-    par->reserved2 = m_vPar.reserved2;
 
     return MFX_ERR_NONE;
 }
@@ -1894,12 +1888,14 @@ mfxStatus VideoDECODEMPEG2InternalBase::UpdateWorkSurfaceParams(int task_num)
 {
     mfxFrameSurface1 *pSurface = m_FrameAllocator->GetSurfaceByIndex(mid[task_num]);
     MFX_CHECK_NULL_PTR1(pSurface);
-    pSurface->Info.CropW = m_vPar.mfx.FrameInfo.CropW;
-    pSurface->Info.CropH = m_vPar.mfx.FrameInfo.CropH;
-    pSurface->Info.CropX = m_vPar.mfx.FrameInfo.CropX;
-    pSurface->Info.CropY = m_vPar.mfx.FrameInfo.CropY;
+
+    pSurface->Info.CropW        = m_vPar.mfx.FrameInfo.CropW;
+    pSurface->Info.CropH        = m_vPar.mfx.FrameInfo.CropH;
+    pSurface->Info.CropX        = m_vPar.mfx.FrameInfo.CropX;
+    pSurface->Info.CropY        = m_vPar.mfx.FrameInfo.CropY;
     pSurface->Info.AspectRatioH = m_vPar.mfx.FrameInfo.AspectRatioH;
     pSurface->Info.AspectRatioW = m_vPar.mfx.FrameInfo.AspectRatioW;
+
     return MFX_ERR_NONE;
 }
 
@@ -2072,7 +2068,7 @@ mfxStatus VideoDECODEMPEG2InternalBase::ConstructFrame(mfxBitstream *bs, mfxFram
         if (0 < m_last_bytes[3])
         {
             uint8_t *pData = m_frame[m_frame_free].Data + m_frame[m_frame_free].DataOffset + m_frame[m_frame_free].DataLength;
-            memcpy_s(pData, m_last_bytes[3], m_last_bytes, m_last_bytes[3]);
+            std::copy(m_last_bytes, m_last_bytes + m_last_bytes[3], pData);
 
             m_frame[m_frame_free].DataLength += m_last_bytes[3];
             memset(m_last_bytes, 0, NUM_REST_BYTES);
@@ -2519,7 +2515,6 @@ mfxStatus VideoDECODEMPEG2InternalBase::ConstructFrameImpl(mfxBitstream *in, mfx
 
 static bool IsStatusReportEnable(VideoCORE * core)
 {
-    core; // touch unreferenced parameter
     UMC::VideoAccelerator *va;
     core->GetVA((mfxHDL*)&va, MFX_MEMTYPE_FROM_DECODE);
 
@@ -2598,7 +2593,8 @@ mfxStatus VideoDECODEMPEG2Internal_HW::GetVideoParam(mfxVideoParam *par)
 
 mfxStatus VideoDECODEMPEG2Internal_HW::RestoreDecoder(int32_t frame_buffer_num, UMC::FrameMemID mem_id_to_unlock, int32_t task_num_to_unlock, bool end_frame, bool remove_2frames, int decrease_dec_field_count)
 {
-    end_frame;
+    (void)end_frame;
+
     m_frame[frame_buffer_num].DataLength = 0;
     m_frame[frame_buffer_num].DataOffset = 0;
     m_frame_in_use[frame_buffer_num] = false;
@@ -2652,7 +2648,7 @@ mfxStatus VideoDECODEMPEG2Internal_HW::DecodeFrameCheck(mfxBitstream *bs,
 
         //VM_ASSERT( m_implUmc.PictureHeader[m_task_num].picture_coding_type != 3 || ( mid[ m_implUmc.frame_buffer.latest_next ] != -1 && mid[ m_implUmc.frame_buffer.latest_prev ] != -1 ));
 
-        IsField = !m_implUmc->IsFramePictureStructure(m_task_num);
+        IsField = !m_implUmc->IsFramePictureStructure(m_task_num); // is invalid (1) if GetPictureHeader() failed (skipped)
         if (m_task_num >= DPB && !IsField)
         {
             int decrease_dec_field_count = dec_field_count % 2 == 0 ? 0 : 1;
@@ -2716,7 +2712,7 @@ mfxStatus VideoDECODEMPEG2Internal_HW::DecodeFrameCheck(mfxBitstream *bs,
                         display_order++;
                     }
 
-                    if ((true == IsField && !(dec_field_count & 1)) || false == IsField)
+                    if (false == IsField || !(dec_field_count & 1) || IsSkipped) // not 2nd field or skipped 2nd
                     {
                         pEntryPoint->requiredNumThreads = m_NumThreads;
                         pEntryPoint->pRoutine = &MPEG2TaskRoutine;
@@ -3154,7 +3150,6 @@ mfxStatus VideoDECODEMPEG2Internal_HW::GetStatusReportByIndex(int32_t /*current_
 mfxStatus VideoDECODEMPEG2Internal_HW::GetStatusReport(int32_t current_index, UMC::FrameMemID surface_id)
 {
     MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_HOTSPOTS, "VideoDECODEMPEG2Internal_HW::GetStatusReport");
-    current_index; surface_id;
 
     UMC::VideoAccelerator *va;
     m_pCore->GetVA((mfxHDL*)&va, MFX_MEMTYPE_FROM_DECODE);

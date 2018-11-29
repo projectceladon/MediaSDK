@@ -398,6 +398,11 @@ void Launcher::DoTranscoding()
                         if (m_pSessionArray[i]->transcodingSts != MFX_ERR_GPU_HANG ||
                             !m_pSessionArray[i]->pPipeline->GetRobustFlag())
                         {
+                            msdk_stringstream ss;
+                            ss << MSDK_STRING("\n\n session ") << i << MSDK_STRING(" [") << m_pSessionArray[i]->pPipeline->GetSessionText() << MSDK_STRING("] failed with status ") << StatusToString(m_pSessionArray[i]->transcodingSts)
+                               << MSDK_STRING(" shutting down the application...") << std::endl << std::endl;
+                            msdk_printf(MSDK_STRING("%s"), ss.str().c_str());
+
                             for (size_t j = 0; j < m_pSessionArray.size(); j++)
                             {
                                 m_pSessionArray[j]->pPipeline->StopSession();
@@ -495,6 +500,7 @@ mfxStatus Launcher::ProcessResult()
 
     mfxStatus FinalSts = MFX_ERR_NONE;
     msdk_printf(MSDK_STRING("-------------------------------------------------------------------------------\n"));
+
     for (mfxU32 i = 0; i < m_pSessionArray.size(); i++)
     {
         mfxStatus _sts = m_pSessionArray[i]->transcodingSts;
@@ -506,7 +512,7 @@ mfxStatus Launcher::ProcessResult()
             : msdk_string((MSDK_STRING("PASSED")));
 
         msdk_stringstream ss;
-        ss << MSDK_STRING("*** session ") << i << MSDK_STRING(" ") << SessionStsStr <<MSDK_STRING(" (") << StatusToString(_sts) << MSDK_STRING(") ")
+        ss << MSDK_STRING("*** session ") << i << MSDK_STRING(" [") << m_pSessionArray[i]->pPipeline->GetSessionText() << MSDK_STRING("] ") << SessionStsStr <<MSDK_STRING(" (") << StatusToString(_sts) << MSDK_STRING(") ")
             << m_pSessionArray[i]->working_time << MSDK_STRING(" sec, ") << m_pSessionArray[i]->numTransFrames << MSDK_STRING(" frames") << std::endl
             << m_parser.GetLine(i) << std::endl << std::endl;
 

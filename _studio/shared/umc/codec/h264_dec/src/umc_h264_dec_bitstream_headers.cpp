@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "umc_defs.h"
-#if defined (UMC_ENABLE_H264_VIDEO_DECODER)
+#if defined (MFX_ENABLE_H264_VIDEO_DECODE)
 
 #include "umc_h264_dec.h"
 #include "umc_h264_bitstream_headers.h"
@@ -2733,7 +2733,7 @@ void H264HeadersBitstream::scalability_info(H264SEIPayLoad *spl)
 
         if (profile_level_info_present_flag)
         {
-            uint32_t   layer_profile_level_idc = (uint8_t)GetBits(24);
+            /*uint32_t   layer_profile_level_idc = (uint8_t)*/GetBits(24);
         }
 
         if (bitrate_info_present_flag)
@@ -2921,4 +2921,4 @@ void SetDefaultScalingLists(H264SeqParamSet * sps)
 } // namespace UMC
 
 
-#endif // UMC_ENABLE_H264_VIDEO_DECODER
+#endif // MFX_ENABLE_H264_VIDEO_DECODE

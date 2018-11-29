@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "mfx_common.h"
+#include "mfxvideo++int.h"
 
 #include <algorithm>
 
@@ -29,6 +30,7 @@
 #include "mfx_vp8_dec_decode_hw.h"
 #include "mfx_enc_common.h"
 #include "mfx_vpx_dec_common.h"
+#include "libmfx_core_vaapi.h"
 
 #include "umc_va_base.h"
 
@@ -89,17 +91,12 @@ VideoDECODEVP8_HW::~VideoDECODEVP8_HW()
 
 bool VideoDECODEVP8_HW::CheckHardwareSupport(VideoCORE *p_core, mfxVideoParam *p_video_param)
 {
+    MFX_CHECK(p_core, false);
 
-    #if defined(MFX_VA_LINUX)
-
-    // GUID is not used on Linux
-    if (p_core->IsGuidSupported(GUID(), p_video_param) != MFX_ERR_NONE)
+    if (p_core->IsGuidSupported(sDXVA_Intel_ModeVP8_VLD, p_video_param) != MFX_ERR_NONE)
     {
         return false;
     }
-
-    // todo : VA API alternative ?
-    #endif
 
     return true;
 
@@ -579,7 +576,7 @@ UMC::FrameMemID VideoDECODEVP8_HW::GetMemIdToUnlock()
     return memId;
 }
 
-static mfxStatus MFX_CDECL VP8DECODERoutine(void *p_state, void * /*pp_param*/, mfxU32 /*thread_number*/, mfxU32)
+mfxStatus MFX_CDECL VP8DECODERoutine(void *p_state, void * /*pp_param*/, mfxU32 /*thread_number*/, mfxU32)
 {
     MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_API, "VP8DECODERoutine");
     mfxStatus sts = MFX_ERR_NONE;
@@ -1287,10 +1284,11 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameHeader(mfxBitstream *in)
         while (++i < 2);
     }
 
+    // Header info consumed bits
     m_frame_info.entropyDecSize = m_boolDecoder[VP8_FIRST_PARTITION].pos() * 8 - 3*8 - m_boolDecoder[VP8_FIRST_PARTITION].bitcount();
 
-    mfxU32 remaining_bits = m_boolDecoder[VP8_FIRST_PARTITION].bitcount() & 0x7;
-    m_frame_info.firstPartitionSize = first_partition_size - (m_boolDecoder[VP8_FIRST_PARTITION].pos() - 3 + (remaining_bits ? 1 : 0) );
+    // Subtract completely consumed bytes + current byte. Current is completely consumed if bitcount is 8.
+    m_frame_info.firstPartitionSize = first_partition_size - ((m_frame_info.entropyDecSize + 7) >> 3);
 
     return MFX_ERR_NONE;
 }

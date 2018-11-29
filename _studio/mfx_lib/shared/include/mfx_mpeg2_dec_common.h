@@ -33,12 +33,6 @@
 void GetMfxFrameRate(mfxU8 umcFrameRateCode, mfxU32 *frameRateNom, mfxU32 *frameRateDenom);
 inline bool IsMpeg2StartCodeEx(const mfxU8* p);
 
-template<class T> inline
-T AlignValue(T value, mfxU32 divisor)
-{
-    return static_cast<T>(((value + divisor - 1) / divisor) * divisor);
-}
-
 #endif
 
 #endif //__MFX_MPEG2_DEC_COMMON_H__

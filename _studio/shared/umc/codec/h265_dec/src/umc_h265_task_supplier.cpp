@@ -19,8 +19,7 @@
 // SOFTWARE.
 
 #include "umc_defs.h"
-//#define UMC_ENABLE_H265_VIDEO_DECODER
-#ifdef UMC_ENABLE_H265_VIDEO_DECODER
+#ifdef MFX_ENABLE_H265_VIDEO_DECODE
 
 #include "memory"
 
@@ -1850,7 +1849,7 @@ UMC::Status TaskSupplier_H265::AddOneFrame(UMC::MediaData * pSource)
 
     } while ((pSource) && (MINIMAL_DATA_SIZE_H265 < pSource->GetDataSize()));
 
-    if (m_checkCRAInsideResetProcess)
+    if (pSource && m_checkCRAInsideResetProcess)
     {
         pSource->MoveDataPointer(int32_t(pSource->GetDataSize() - moveToSpsOffset));
         m_pNALSplitter->Reset();
@@ -2657,4 +2656,4 @@ int32_t CalculateDPBSize(uint32_t /*profile_idc*/, uint32_t &level_idc, int32_t 
 
 
 } // namespace UMC_HEVC_DECODER
-#endif // UMC_ENABLE_H265_VIDEO_DECODER
+#endif // MFX_ENABLE_H265_VIDEO_DECODE

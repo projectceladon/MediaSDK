@@ -676,7 +676,7 @@ mfxStatus CTranscodingPipeline::DecodeOneFrame(ExtendedSurface *pExtSurface)
     {
         sts = m_pmfxSession->SyncOperation(pExtSurface->Syncp, MSDK_WAIT_INTERVAL);
         HandlePossibleGpuHang(sts);
-        MSDK_CHECK_STATUS(sts, "m_pmfxSession->SyncOperation failed");
+        MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "Decode: SyncOperation failed");
     }
     return sts;
 
@@ -723,7 +723,7 @@ mfxStatus CTranscodingPipeline::DecodeLastFrame(ExtendedSurface *pExtSurface)
     {
         sts = m_pmfxSession->SyncOperation(pExtSurface->Syncp,  MSDK_WAIT_INTERVAL);
         HandlePossibleGpuHang(sts);
-        MSDK_CHECK_STATUS(sts, "m_pmfxSession->SyncOperation failed");
+        MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "Decode: SyncOperation failed");
     }
 
     return sts;
@@ -924,6 +924,10 @@ void CTranscodingPipeline::StopSession()
 {
     AutomaticMutex guard(m_mStopSession);
     m_bForceStop = true;
+
+    msdk_stringstream ss;
+    ss << MSDK_STRING("session [") << GetSessionText() << MSDK_STRING("] m_bForceStop is set") << std::endl;
+    msdk_printf(MSDK_STRING("%s"), ss.str().c_str());
 }
 
 bool CTranscodingPipeline::IsOverlayUsed()
@@ -1154,7 +1158,7 @@ mfxStatus CTranscodingPipeline::Decode()
             sts = m_pmfxSession->SyncOperation(PreEncExtSurface.Syncp, MSDK_WAIT_INTERVAL);
             HandlePossibleGpuHang(sts);
             PreEncExtSurface.Syncp = NULL;
-            MSDK_CHECK_STATUS(sts, "m_pmfxSession->SyncOperation failed");
+            MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "PreEnc: SyncOperation failed");
         }
 
         size_t i = 0;
@@ -1205,7 +1209,7 @@ mfxStatus CTranscodingPipeline::Decode()
             {
                 sts = m_pmfxSession->SyncOperation(frontSurface.Syncp, MSDK_WAIT_INTERVAL);
                 HandlePossibleGpuHang(sts);
-                MSDK_CHECK_STATUS(sts, "m_pmfxSession->SyncOperation failed");
+                MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "SyncOperation failed");
                 frontSurface.Syncp=NULL;
             }
         }
@@ -1286,7 +1290,7 @@ mfxStatus CTranscodingPipeline::Encode()
                     MFX_ITT_TASK("SyncOperation");
                     sts = m_pParentPipeline->m_pmfxSession->SyncOperation(DecExtSurface.Syncp, MSDK_WAIT_INTERVAL);
                     HandlePossibleGpuHang(sts);
-                    MSDK_CHECK_STATUS(sts, "m_pParentPipeline->m_pmfxSession->SyncOperation failed");
+                    MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "Encode: SyncOperation failed");
                 }
             }
 
@@ -1364,7 +1368,7 @@ mfxStatus CTranscodingPipeline::Encode()
                 // Sync to ensure VPP is completed to avoid flicker
                 sts = m_pmfxSession->SyncOperation(VppExtSurface.Syncp, MSDK_WAIT_INTERVAL);
                 HandlePossibleGpuHang(sts);
-                MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+                MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "VPP: SyncOperation failed");
 
                 /* in case if enabled dumping into file for after VPP composition */
                 if (DUMP_FILE_VPP_COMP == m_vppCompDumpRenderMode)
@@ -1489,7 +1493,7 @@ mfxStatus CTranscodingPipeline::Encode()
 //                    if(m_nVPPCompEnable != VppCompOnlyEncode)
 //                    {
 //                        sts = m_pmfxSession->SyncOperation(VppExtSurface.Syncp, MSDK_WAIT_INTERVAL);
-//                        MSDK_CHECK_STATUS(sts, "m_pmfxSession->SyncOperation failed");
+//                        MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "VPP: SyncOperation failed");
 //                    }
 //#if defined(_WIN32) || defined(_WIN64)
 //                    sts = m_hwdev4Rendering->RenderFrame(VppExtSurface.pSurface, m_pMFXAllocator);
@@ -2028,7 +2032,7 @@ mfxStatus CTranscodingPipeline::PutBS()
     {
         sts = m_pmfxSession->SyncOperation(pBitstreamEx->Syncp, MSDK_WAIT_INTERVAL);
         HandlePossibleGpuHang(sts);
-        MSDK_CHECK_STATUS(sts, "m_pmfxSession->SyncOperation failed");
+        MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "Encode: SyncOperation failed");
     }
 
     m_nOutputFramesNum++;
@@ -2083,7 +2087,7 @@ mfxStatus CTranscodingPipeline::Surface2BS(ExtendedSurface* pSurf,mfxBitstream* 
     {
         sts = m_pmfxSession->SyncOperation(pSurf->Syncp, MSDK_WAIT_INTERVAL);
         HandlePossibleGpuHang(sts);
-        MSDK_CHECK_STATUS(sts, "m_pmfxSession->SyncOperation failed");
+        MSDK_CHECK_ERR_NONE_STATUS(sts, MFX_ERR_ABORTED, "SyncOperation failed");
         pSurf->Syncp=0;
 
         //--- Copying data from surface to bitstream
@@ -3980,6 +3984,7 @@ mfxFrameSurface1* CTranscodingPipeline::GetFreeSurface(bool isDec, mfxU64 timeou
         if (m_bForceStop)
         {
             m_mStopSession.Unlock();
+            msdk_printf(MSDK_STRING("WARNING: m_bForceStop is set, returning NULL ptr from GetFreeSurface\n"));
             break;
         }
         m_mStopSession.Unlock();
@@ -4357,7 +4362,7 @@ mfxStatus CTranscodingPipeline::Reset()
     {
         if (m_bIsPlugin && m_bIsVpp)
         {
-            mfxFrameAllocRequest request[2] = { 0 };
+            mfxFrameAllocRequest request[2] {};
             sts = m_pmfxVPP->QueryIOSurf(&m_mfxPluginParams, request, &m_mfxVppParams);
             MSDK_CHECK_STATUS(sts, "m_pmfxVPP->QueryIOSurf failed");
 
@@ -4465,20 +4470,24 @@ mfxStatus CTranscodingPipeline::Run()
 {
     mfxStatus sts = MFX_ERR_NONE;
 
+    msdk_stringstream ss;
     if (m_bDecodeEnable && m_bEncodeEnable)
     {
         sts = Transcode();
-        MSDK_CHECK_STATUS(sts, "CTranscodingPipeline::Run::Transcode() failed");
+        ss << MSDK_STRING("CTranscodingPipeline::Run::Transcode() [") << GetSessionText() << MSDK_STRING("] failed");
+        MSDK_CHECK_STATUS(sts, ss.str());
     }
     else if (m_bDecodeEnable)
     {
         sts = Decode();
-        MSDK_CHECK_STATUS(sts, "CTranscodingPipeline::Run::Decode() failed");
+        ss << MSDK_STRING("CTranscodingPipeline::Run::Decode() [") << GetSessionText() << MSDK_STRING("] failed");
+        MSDK_CHECK_STATUS(sts, ss.str());
     }
     else if (m_bEncodeEnable)
     {
         sts = Encode();
-        MSDK_CHECK_STATUS(sts, "CTranscodingPipeline::Run::Encode() failed");
+        ss << MSDK_STRING("CTranscodingPipeline::Run::Encode() [") << GetSessionText() << MSDK_STRING("] failed");
+        MSDK_CHECK_STATUS(sts, ss.str());
     }
     else
         return MFX_ERR_UNSUPPORTED;

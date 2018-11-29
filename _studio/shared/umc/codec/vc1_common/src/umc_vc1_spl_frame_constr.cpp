@@ -20,7 +20,7 @@
 
 #include "umc_defs.h"
 
-#if defined (UMC_ENABLE_VC1_VIDEO_DECODER)
+#if defined (MFX_ENABLE_VC1_VIDEO_DECODE)
 
 #include "umc_vc1_spl_frame_constr.h"
 #include "umc_vc1_spl_tbl.h"
@@ -509,7 +509,7 @@ namespace UMC
 
         if(readBufSize > readDataSize)
         {
-            memcpy_s(currFramePos, 4, readPos - 4, 4);
+            std::copy(readPos - 4, readPos, currFramePos);
             Info.out->SetDataSize(frameSize + 4);
             Info.in->SetDataSize(0);
 
@@ -824,4 +824,4 @@ namespace UMC
     }
 }
 
-#endif //UMC_ENABLE_VC1_SPLITTER || UMC_ENABLE_VC1_VIDEO_DECODER
+#endif //UMC_ENABLE_VC1_SPLITTER || MFX_ENABLE_VC1_VIDEO_DECODE

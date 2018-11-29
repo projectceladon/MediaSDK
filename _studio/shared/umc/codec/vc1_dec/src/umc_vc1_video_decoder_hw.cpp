@@ -20,7 +20,7 @@
 
 #include "umc_defs.h"
 
-#if defined (UMC_ENABLE_VC1_VIDEO_DECODER)
+#if defined (MFX_ENABLE_VC1_VIDEO_DECODE)
 
 #include "umc_vc1_video_decoder_hw.h"
 #include "umc_video_data.h"
@@ -74,8 +74,7 @@ Status VC1VideoDecoderHW::Init(BaseCodecParams *pInit)
     try
     // memory allocation and Init all env for frames/tasks store - VC1TaskStore object
     {
-        m_pStore = (VC1TaskStore*)m_pHeap->s_alloc<VC1TaskStore>();
-        m_pStore = new(m_pStore) VC1TaskStore(m_pMemoryAllocator);
+        m_pStore = new(m_pHeap->s_alloc<VC1TaskStore>()) VC1TaskStore(m_pMemoryAllocator);
 
         if (!m_pStore->Init(m_iThreadDecoderNum,
                             m_iMaxFramesInProcessing,
@@ -149,10 +148,10 @@ Status VC1VideoDecoderHW::Close(void)
 
     if (m_pStore)
     {
-        delete m_pStore;
-        m_pStore = 0;
+        m_pStore->~VC1TaskStore();
+        m_pStore = nullptr;
     }
-    
+
     FreeAlloc(m_pContext);
 
     if(m_pMemoryAllocator)
@@ -506,5 +505,5 @@ UMC::FrameMemID VC1VideoDecoderHW::GetSkippedIndex(bool isIn)
     return VC1VideoDecoder::GetSkippedIndex(m_pStore->GetLastDS(), isIn);
 }
 
-#endif //UMC_ENABLE_VC1_VIDEO_DECODER
+#endif //MFX_ENABLE_VC1_VIDEO_DECODE
 

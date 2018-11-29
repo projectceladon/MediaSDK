@@ -20,7 +20,7 @@
 
 #include "umc_defs.h"
 
-#ifdef UMC_ENABLE_H265_VIDEO_DECODER
+#ifdef MFX_ENABLE_H265_VIDEO_DECODE
 
 #include "umc_h265_dec_defs.h"
 #include "umc_h265_task_supplier.h"
@@ -37,13 +37,14 @@ namespace UMC_HEVC_DECODER { namespace MFX_Utility
 {
 
 // Check HW capabilities
-bool IsNeedPartialAcceleration_H265(mfxVideoParam* par, eMFXHWType /*type*/)
+bool IsNeedPartialAcceleration_H265(mfxVideoParam* par, eMFXHWType type)
 {
     if (!par)
         return false;
 
 #if defined(MFX_VA_LINUX)
-    if (par->mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV420 && par->mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV400)
+    if (type < MFX_HW_ICL &&
+        par->mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV420 && par->mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV400)
         return true;
 
     if (par->mfx.FrameInfo.FourCC == MFX_FOURCC_P210 || par->mfx.FrameInfo.FourCC == MFX_FOURCC_NV16)
@@ -1012,4 +1013,4 @@ bool CheckVideoParam_H265(mfxVideoParam *in, eMFXHWType /* type */)
 
 } } // namespace UMC_HEVC_DECODER
 
-#endif // UMC_ENABLE_H265_VIDEO_DECODER
+#endif // MFX_ENABLE_H265_VIDEO_DECODE

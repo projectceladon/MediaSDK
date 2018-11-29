@@ -20,7 +20,7 @@
 
 #include "umc_defs.h"
 
-#ifdef UMC_ENABLE_H265_VIDEO_DECODER
+#ifdef MFX_ENABLE_H265_VIDEO_DECODE
 
 #include "umc_h265_slice_decoding.h"
 #include "umc_h265_heap.h"
@@ -378,8 +378,17 @@ void H265Slice::CopyFromBaseSlice(const H265Slice * s)
 UMC::Status H265Slice::UpdateReferenceList(H265DBPList *pDecoderFrameList, H265DecoderFrame* curr_ref)
 {
     UMC::Status ps = UMC::UMC_OK;
-    H265DecoderRefPicList::ReferenceInformation* pRefPicList0 = m_pCurrentFrame->GetRefPicList(m_iNumber, 0)->m_refPicList;
-    H265DecoderRefPicList::ReferenceInformation* pRefPicList1 = m_pCurrentFrame->GetRefPicList(m_iNumber, 1)->m_refPicList;
+
+    if (m_pCurrentFrame == nullptr)
+        return UMC::UMC_ERR_NULL_PTR;
+
+    const H265DecoderRefPicList* pH265DecRefPicList0 = m_pCurrentFrame->GetRefPicList(m_iNumber, 0);
+    const H265DecoderRefPicList* pH265DecRefPicList1 = m_pCurrentFrame->GetRefPicList(m_iNumber, 1);
+    if (pH265DecRefPicList0 == nullptr || pH265DecRefPicList1 == nullptr)
+        return UMC::UMC_ERR_NULL_PTR;
+
+    H265DecoderRefPicList::ReferenceInformation* pRefPicList0 = pH265DecRefPicList0->m_refPicList;
+    H265DecoderRefPicList::ReferenceInformation* pRefPicList1 = pH265DecRefPicList1->m_refPicList;
 
     H265SliceHeader* header = GetSliceHeader();
     VM_ASSERT(header);
@@ -702,4 +711,4 @@ void ReferencePictureSetList::allocate(unsigned NumberOfReferencePictureSets)
 }
 
 } // namespace UMC_HEVC_DECODER
-#endif // UMC_ENABLE_H265_VIDEO_DECODER
+#endif // MFX_ENABLE_H265_VIDEO_DECODE

@@ -54,6 +54,16 @@ struct SourceFrameInfo
     }
 };
 
+struct PerFrameTypeCtrl
+{
+    mfxExtFeiHevcEncFrameCtrl   CtrlI;
+    mfxExtFeiHevcEncFrameCtrl   CtrlP; // also applicable for GPB frames
+    mfxExtFeiHevcEncFrameCtrl   CtrlB;
+
+    PerFrameTypeCtrl() : CtrlI(), CtrlP(), CtrlB()
+    {}
+};
+
 enum BRC_TYPE
 {
     NONE      = 0,
@@ -96,8 +106,6 @@ struct sInputParams
 
     bool bEncodedOrder;        // use EncodeOrderControl for external reordering
     mfxU8  QP;
-    mfxU16 dstWidth;           // destination picture width
-    mfxU16 dstHeight;          // destination picture height
     mfxU32 nNumFrames;
     mfxU16 nNumSlices;
     mfxU16 nRefDist;           // distance between I- or P (or GPB) - key frames, GopRefDist = 1, there are no regular B-frames used
@@ -115,21 +123,17 @@ struct sInputParams
     bool   bDisableQPOffset;   // disable qp offset per pyramid layer
     bool   drawMVP;
     bool   dumpMVP;
-    mfxU16 fastIntraModeOnI;
-    mfxU16 fastIntraModeOnP;
-    mfxU16 fastIntraModeOnB;
 
     PipelineMode pipeMode;
 
     sBrcParams sBRCparams;
 
     mfxExtFeiHevcEncFrameCtrl   encodeCtrl;
+    PerFrameTypeCtrl            frameCtrl;
 
     sInputParams()
         : bEncodedOrder(true)
         , QP(26)
-        , dstWidth(0)
-        , dstHeight(0)
         , nNumFrames(0xffff)
         , nNumSlices(1)
         , nRefDist(0)
@@ -147,9 +151,6 @@ struct sInputParams
         , bDisableQPOffset(false)
         , drawMVP(false)
         , dumpMVP(false)
-        , fastIntraModeOnI(0)
-        , fastIntraModeOnP(0)
-        , fastIntraModeOnB(0)
         , pipeMode(Full)
         , sBRCparams()
     {
@@ -164,6 +165,9 @@ struct sInputParams
         // enable internal L0/L1 predictors: 1 - spatial predictors
         encodeCtrl.MultiPred[0] = encodeCtrl.MultiPred[1] = 1;
         encodeCtrl.MVPredictor = 7;
+
+        frameCtrl.CtrlI = frameCtrl.CtrlP = frameCtrl.CtrlB = encodeCtrl;
+        frameCtrl.CtrlI.MVPredictor = 0;
     }
 };
 

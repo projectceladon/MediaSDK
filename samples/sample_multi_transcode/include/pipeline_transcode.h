@@ -83,7 +83,7 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #ifdef ENABLE_MCTF
 const mfxU16  MAX_NUM_OF_ATTACHED_BUFFERS_FOR_IN_SUFACE = 2;
 const mfxU16  MCTF_MID_FILTER_STRENGTH = 10;
-const mfxF64  MCTF_LOSSLESS_BPP = 12.0;
+const mfxF64  MCTF_LOSSLESS_BPP = 0.0;
 #endif
 
 namespace TranscodingSample
@@ -617,6 +617,14 @@ namespace TranscodingSample
         void StopSession();
         bool IsOverlayUsed();
         size_t GetRobustFlag();
+
+        msdk_string GetSessionText()
+        {
+            msdk_stringstream ss;
+            ss << m_pmfxSession->operator mfxSession();
+
+            return ss.str();
+        }
     protected:
         virtual mfxStatus CheckRequiredAPIVersion(mfxVersion& version, sInputParams *pParams);
 

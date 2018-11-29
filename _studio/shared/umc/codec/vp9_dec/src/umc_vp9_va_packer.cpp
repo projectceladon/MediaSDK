@@ -20,7 +20,7 @@
 
 #include "umc_vp9_dec_defs.h"
 
-#ifdef UMC_ENABLE_VP9_VIDEO_DECODER
+#ifdef MFX_ENABLE_VP9_VIDEO_DECODE
 
 #include "umc_vp9_va_packer.h"
 #include "umc_vp9_bitstream.h"
@@ -32,12 +32,6 @@ using namespace UMC;
 
 namespace UMC_VP9_DECODER
 {
-
-inline
-void mfx_memcpy(void * dst, size_t dstLen, void * src, size_t len)
-{
-    memcpy_s(dst, dstLen, src, len);
-}
 
 Packer * Packer::CreatePacker(UMC::VideoAccelerator * va)
 {
@@ -79,7 +73,7 @@ void PackerVA::PackAU(VP9Bitstream* bs, VP9DecoderFrame const* info)
     if (!bs || !info)
         throw vp9_exception(MFX_ERR_NULL_PTR);
 
-    UMC::UMCVACompBuffer* pCompBuf = NULL;
+    UMC::UMCVACompBuffer* pCompBuf = nullptr;
     VADecPictureParameterBufferVP9 *picParam =
         (VADecPictureParameterBufferVP9*)m_va->GetCompBuffer(VAPictureParameterBufferType, &pCompBuf, sizeof(VADecPictureParameterBufferVP9));
 
@@ -89,7 +83,7 @@ void PackerVA::PackAU(VP9Bitstream* bs, VP9DecoderFrame const* info)
     memset(picParam, 0, sizeof(VADecPictureParameterBufferVP9));
     PackPicParams(picParam, info);
 
-    pCompBuf = NULL;
+    pCompBuf = nullptr;
     VASliceParameterBufferVP9 *sliceParam =
         (VASliceParameterBufferVP9*)m_va->GetCompBuffer(VASliceParameterBufferType, &pCompBuf, sizeof(VASliceParameterBufferVP9));
     if (!sliceParam)
@@ -104,12 +98,12 @@ void PackerVA::PackAU(VP9Bitstream* bs, VP9DecoderFrame const* info)
     uint32_t const offset = bs->BytesDecoded();
     length -= offset;
 
-    pCompBuf = NULL;
+    pCompBuf = nullptr;
     mfxU8 *bistreamData = (mfxU8*)m_va->GetCompBuffer(VASliceDataBufferType, &pCompBuf, length);
     if (!bistreamData)
         throw vp9_exception(MFX_ERR_MEMORY_ALLOC);
-    
-    mfx_memcpy(bistreamData, length, data + offset, length);
+
+    std::copy(data + offset, data + offset + length, bistreamData);
     pCompBuf->SetDataSize(length);
 }
 
@@ -126,7 +120,16 @@ void PackerVA::PackPicParams(VADecPictureParameterBufferVP9* picParam, VP9Decode
     else
     {
         for (mfxU8 ref = 0; ref < NUM_REF_FRAMES; ++ref)
-            picParam->reference_frames[ref] = m_va->GetSurfaceID(info->ref_frame_map[ref]);
+        {
+            if (info->ref_frame_map[ref] != VP9_INVALID_REF_FRAME)
+            {
+                picParam->reference_frames[ref] = m_va->GetSurfaceID(info->ref_frame_map[ref]);
+            }
+            else
+            {
+                picParam->reference_frames[ref] = VA_INVALID_SURFACE;
+            }
+        }
     }
 
     picParam->pic_fields.bits.subsampling_x = info->subsamplingX;
@@ -208,4 +211,4 @@ void PackerVA::PackSliceParams(VASliceParameterBufferVP9* sliceParam, VP9Decoder
 
 } // namespace UMC_HEVC_DECODER
 
-#endif // UMC_ENABLE_VP9_VIDEO_DECODER
+#endif // MFX_ENABLE_VP9_VIDEO_DECODE

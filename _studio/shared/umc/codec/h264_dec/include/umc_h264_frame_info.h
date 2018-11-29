@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "umc_defs.h"
-#if defined (UMC_ENABLE_H264_VIDEO_DECODER)
+#if defined (MFX_ENABLE_H264_VIDEO_DECODE)
 
 #ifndef __UMC_H264_FRAME_INFO_H
 #define __UMC_H264_FRAME_INFO_H
@@ -116,11 +116,10 @@ class H264DecoderFrameInfo : public H264DecoderLayer
 {
 public:
 
-    H264DecoderFrameInfo(H264DecoderFrame * pFrame,  H264_Heap_Objects * pObjHeap)
+    H264DecoderFrameInfo(H264DecoderFrame * pFrame)
         : m_pFrame(pFrame)
         , m_prepared(0)
         , m_SliceCount(0)
-        , m_pObjHeap(pObjHeap)
         , decRefPicMarking()
     {
         Reset();
@@ -415,9 +414,7 @@ private:
 
     int32_t m_SliceCount;
 
-    H264_Heap_Objects * m_pObjHeap;
     bool m_IsNeedDeblocking;
-
     bool m_IsReferenceAU;
     bool m_IsIntraAU;
     bool m_IsField;
@@ -440,4 +437,4 @@ private:
 } // namespace UMC
 
 #endif // __UMC_H264_FRAME_INFO_H
-#endif // UMC_ENABLE_H264_VIDEO_DECODER
+#endif // MFX_ENABLE_H264_VIDEO_DECODE

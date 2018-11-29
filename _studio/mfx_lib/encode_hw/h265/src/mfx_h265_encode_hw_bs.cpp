@@ -175,7 +175,7 @@ const mfxU8 tab_cabacTransTbl[2][128] = {
     96, 97, 97, 97, 98, 98, 99, 99, 99, 100, 100,
     100, 101, 101, 101, 102, 102, 127
     },
-    { 64, 0, 1, 2, 2, 4, 4, 5, 6, 7, 8, 9, 9, 11, 11,
+    { 0, 0, 1, 2, 2, 4, 4, 5, 6, 7, 8, 9, 9, 11, 11,
     12, 13, 13, 15, 15, 16, 16, 18, 18, 19, 19, 21,
     21, 22, 22, 23, 24, 24, 25, 26, 26, 27, 27, 28,
     29, 29, 30, 30, 30, 31, 32, 32, 33, 33, 33, 34,
@@ -315,7 +315,7 @@ mfxU32 AddEmulationPreventionAndCopy(
 
     if (!bEmulationByteInsertion)
     {
-        memcpy_s(bsDataStart, len, sbegin, len);
+        std::copy(sbegin, sbegin + len, bsDataStart);
         return len;
     }
 
@@ -396,7 +396,7 @@ void BitstreamWriter::PutBitsBuffer(mfxU32 n, void* bb, mfxU32 o)
         n &= 7;
 
         assert(N + !!n < (m_bsEnd - m_bs));
-        memcpy_s(m_bs, N, b, N);
+        std::copy(b, b + N, m_bs);
 
         m_bs += N;
 
@@ -2016,7 +2016,7 @@ void HeaderPacker::PackSSH(
             if (!slice.short_term_ref_pic_set_sps_flag)
             {
                 STRPS strps[65];
-                Copy(strps, sps.strps);
+                std::copy(std::begin(sps.strps), std::end(sps.strps), std::begin(strps));
                 strps[sps.num_short_term_ref_pic_sets] = slice.strps;
 
                 PackSTRPS(bs, strps, sps.num_short_term_ref_pic_sets, sps.num_short_term_ref_pic_sets);
@@ -2640,10 +2640,14 @@ void HeaderPacker::GetPrefixSEI(Task const & task, mfxU8*& buf, mfxU32& sizeInBy
     bool insertBP = false, insertPT = false;
 
 
-    for (mfxU16 i = 0; i < task.m_ctrl.NumPayload; i++)
+    if (task.m_ctrl.Payload != nullptr)
     {
-        if (!(task.m_ctrl.Payload[i]->CtrlFlags & MFX_PAYLOAD_CTRL_SUFFIX))
-            prefixPL.push_back(task.m_ctrl.Payload[i]);
+        for (mfxU16 i = 0; i < task.m_ctrl.NumPayload; i++)
+        {
+            if ((task.m_ctrl.Payload[i] != nullptr) &&
+                !(task.m_ctrl.Payload[i]->CtrlFlags & MFX_PAYLOAD_CTRL_SUFFIX))
+                prefixPL.push_back(task.m_ctrl.Payload[i]);
+        }
     }
 
     if (m_par->mfx.RateControlMethod != MFX_RATECONTROL_CQP)
@@ -2819,12 +2823,18 @@ void HeaderPacker::GetSuffixSEI(Task const & task, mfxU8*& buf, mfxU32& sizeInBy
     std::list<const mfxPayload*> suffixPL, prefixPL;
     std::list<const mfxPayload*>::iterator plIt;
 
-    for (mfxU16 i = 0; i < task.m_ctrl.NumPayload; i++)
+    if (task.m_ctrl.Payload != nullptr)
     {
-        if (task.m_ctrl.Payload[i]->CtrlFlags & MFX_PAYLOAD_CTRL_SUFFIX)
-            suffixPL.push_back(task.m_ctrl.Payload[i]);
-        else
-            prefixPL.push_back(task.m_ctrl.Payload[i]);
+        for (mfxU16 i = 0; i < task.m_ctrl.NumPayload; i++)
+        {
+            if (task.m_ctrl.Payload[i] != nullptr)
+            {
+                if (task.m_ctrl.Payload[i]->CtrlFlags & MFX_PAYLOAD_CTRL_SUFFIX)
+                    suffixPL.push_back(task.m_ctrl.Payload[i]);
+                else
+                    prefixPL.push_back(task.m_ctrl.Payload[i]);
+            }
+        }
     }
 
      /* It is a requirement of bitstream conformance that when a prefix SEI message with payloadType

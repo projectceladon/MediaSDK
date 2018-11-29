@@ -1,15 +1,15 @@
-// Copyright (c) 2017 Intel Corporation
-// 
+// Copyright (c) 2017-2018 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "umc_defs.h"
-#ifdef UMC_ENABLE_H265_VIDEO_DECODER
+#ifdef MFX_ENABLE_H265_VIDEO_DECODE
 
 #include "umc_h265_bitstream_headers.h"
 #include "umc_h265_headers.h"
@@ -126,8 +126,8 @@ int32_t H265HeadersBitstream::pic_timing(const HeaderSet<H265SeqParamSet> & sps,
     if (csps->frame_field_info_present_flag)
     {
         spl->SEI_messages.pic_timing.pic_struct = (DisplayPictureStruct_H265)GetBits(4);
-        (uint8_t)GetBits(2); // source_scan_type
-        (uint8_t)GetBits(1); // duplicate_flag
+        GetBits(2); // source_scan_type
+        GetBits(1); // duplicate_flag
     }
 
     if (csps->m_hrdParameters.nal_hrd_parameters_present_flag || csps->m_hrdParameters.vcl_hrd_parameters_present_flag)
@@ -192,4 +192,4 @@ int32_t H265HeadersBitstream::reserved_sei_message(const HeaderSet<H265SeqParamS
 }
 
 }//namespace UMC_HEVC_DECODER
-#endif // UMC_ENABLE_H265_VIDEO_DECODER
+#endif // MFX_ENABLE_H265_VIDEO_DECODE

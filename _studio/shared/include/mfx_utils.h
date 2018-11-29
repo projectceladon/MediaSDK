@@ -1,15 +1,15 @@
-// Copyright (c) 2017 Intel Corporation
-// 
+// Copyright (c) 2017-2018 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -26,6 +26,8 @@
 #include "umc_structures.h"
 #include "mfx_trace.h"
 #include "mfx_timing.h"
+
+#include <cassert>
 
 #ifndef MFX_DEBUG_TRACE
 #define MFX_STS_TRACE(sts) sts
@@ -96,6 +98,11 @@ mfxU64 GetMfxTimeStamp(mfxF64 ts)
     return ts < 0.0 ? MFX_TIME_STAMP_INVALID : (mfxU64)(ts * MFX_TIME_STAMP_FREQUENCY + .5);
 }
 
+inline
+bool LumaIsNull(mfxFrameSurface1 * surf)
+{
+    return !surf->Data.Y && !surf->Data.Y410;
+}
 
 #define MFX_ZERO_MEM(_X)    memset(&_X, 0, sizeof(_X))
 
@@ -105,6 +112,13 @@ mfxU64 GetMfxTimeStamp(mfxF64 ts)
 #ifndef SAFE_RELEASE
 #define SAFE_RELEASE(PTR)   { if (PTR) { PTR->Release(); PTR = NULL; } }
 #endif
+
+/// Align integral T @value to power of two @alignment
+template<class T> inline T AlignValue(T value, mfxU32 alignment)
+{
+    assert((alignment & (alignment - 1)) == 0); // should be 2^n
+    return static_cast<T>((value + alignment - 1) & ~(alignment - 1));
+}
 
 
 //#undef  SUCCEEDED

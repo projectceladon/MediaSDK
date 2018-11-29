@@ -20,11 +20,9 @@
 
 #include <umc_va_base.h>
 
-
 #include "umc_defs.h"
 #include "umc_va_linux.h"
 #include "umc_va_video_processing.h"
-#include "vm_file.h"
 #include "mfx_trace.h"
 #include "umc_frame_allocator.h"
 #include "mfxstructures.h"
@@ -462,9 +460,6 @@ Status LinuxVideoAccelerator::Init(VideoAcceleratorParams* pInfo)
             va_res = vaGetConfigAttributes(m_dpy, va_profile, va_entrypoint, va_attributes, nattr);
             umcRes = va_to_umc_res(va_res);
         }
-
-        if (UMC_OK == umcRes && (!(va_attributes[0].value & VA_RT_FORMAT_YUV420)))
-            umcRes = UMC_ERR_FAILED;
 
         if (UMC_OK == umcRes)
         {
