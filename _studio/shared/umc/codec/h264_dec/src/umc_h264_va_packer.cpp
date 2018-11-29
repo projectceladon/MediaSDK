@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "umc_defs.h"
-#if defined (UMC_ENABLE_H264_VIDEO_DECODER)
+#if defined (MFX_ENABLE_H264_VIDEO_DECODE)
 
 #include "umc_h264_va_packer.h"
 #include "umc_h264_task_supplier.h"
@@ -74,8 +74,6 @@ Status Packer::QueryStreamOut(H264DecoderFrame* /*pFrame*/)
 
 Packer * Packer::CreatePacker(VideoAccelerator * va, TaskSupplier* supplier)
 {
-    va;
-    supplier;
     Packer * packer = 0;
         packer = new PackerVA(va, supplier);
 
@@ -505,7 +503,8 @@ int32_t PackerVA::PackSliceParams(H264Slice *pSlice, int32_t sliceNum, int32_t c
     VM_ASSERT (CompBuf->GetBufferSize() >= pSlice_H264->slice_data_offset + AlignedNalUnitSize);
 
     pVAAPI_BitStreamBuffer += pSlice_H264->slice_data_offset;
-    memcpy(pVAAPI_BitStreamBuffer, pNalUnit, NalUnitSize);
+
+    std::copy(pNalUnit, pNalUnit + NalUnitSize, pVAAPI_BitStreamBuffer);
     memset(pVAAPI_BitStreamBuffer + NalUnitSize, 0, AlignedNalUnitSize - NalUnitSize);
 
     if (!m_va->IsLongSliceControl())
@@ -625,10 +624,20 @@ int32_t PackerVA::PackSliceParams(H264Slice *pSlice, int32_t sliceNum, int32_t c
     }
 
     int32_t realSliceNum = pSlice->GetSliceNum();
-    H264DecoderFrame **pRefPicList0 = pCurrentFrame->GetRefPicList(realSliceNum, 0)->m_RefPicList;
-    H264DecoderFrame **pRefPicList1 = pCurrentFrame->GetRefPicList(realSliceNum, 1)->m_RefPicList;
-    ReferenceFlags *pFields0 = pCurrentFrame->GetRefPicList(realSliceNum, 0)->m_Flags;
-    ReferenceFlags *pFields1 = pCurrentFrame->GetRefPicList(realSliceNum, 1)->m_Flags;
+
+    if (pCurrentFrame == nullptr)
+        throw h264_exception(UMC_ERR_NULL_PTR);
+
+    const H264DecoderRefPicList* pH264DecRefPicList0 = pCurrentFrame->GetRefPicList(realSliceNum, 0);
+    const H264DecoderRefPicList* pH264DecRefPicList1 = pCurrentFrame->GetRefPicList(realSliceNum, 1);
+
+    if (pH264DecRefPicList0 == nullptr || pH264DecRefPicList1 == nullptr)
+        throw h264_exception(UMC_ERR_NULL_PTR);
+
+    H264DecoderFrame **pRefPicList0 = pH264DecRefPicList0->m_RefPicList;
+    H264DecoderFrame **pRefPicList1 = pH264DecRefPicList1->m_RefPicList;
+    ReferenceFlags *pFields0 = pH264DecRefPicList0->m_Flags;
+    ReferenceFlags *pFields1 = pH264DecRefPicList1->m_Flags;
 
     int32_t i;
     for(i = 0; i < 32; i++)
@@ -637,7 +646,7 @@ int32_t PackerVA::PackSliceParams(H264Slice *pSlice, int32_t sliceNum, int32_t c
         {
             int32_t defaultIndex = ((0 == pCurrentFrame->m_index) && !pRefPicList0[i]->IsFrameExist()) ? 1 : 0;
 
-            int32_t idx = FillRefFrame(&(pSlice_H264->RefPicList0[i]), pRefPicList0[i],
+            FillRefFrame(&(pSlice_H264->RefPicList0[i]), pRefPicList0[i],
                 pFields0[i], pSliceHeader->field_pic_flag, defaultIndex);
 
             if (pSlice_H264->RefPicList0[i].picture_id == pPicParams_H264->CurrPic.picture_id &&
@@ -655,7 +664,7 @@ int32_t PackerVA::PackSliceParams(H264Slice *pSlice, int32_t sliceNum, int32_t c
         {
             int32_t defaultIndex = ((0 == pCurrentFrame->m_index) && !pRefPicList1[i]->IsFrameExist()) ? 1 : 0;
 
-            int32_t idx = FillRefFrame(&(pSlice_H264->RefPicList1[i]), pRefPicList1[i],
+            FillRefFrame(&(pSlice_H264->RefPicList1[i]), pRefPicList1[i],
                 pFields1[i], pSliceHeader->field_pic_flag, defaultIndex);
 
             if (pSlice_H264->RefPicList1[i].picture_id == pPicParams_H264->CurrPic.picture_id && pRefPicList1[i]->IsFrameExist())
@@ -679,7 +688,7 @@ void PackerVA::PackProcessingInfo(H264DecoderFrameInfo * sliceInfo)
         throw h264_exception(UMC_ERR_FAILED);
 
     UMCVACompBuffer *pipelineVABuf;
-    VAProcPipelineParameterBuffer* pipelineBuf = (VAProcPipelineParameterBuffer*)m_va->GetCompBuffer(VAProcPipelineParameterBufferType, &pipelineVABuf, sizeof(VAProcPipelineParameterBuffer));
+    auto* pipelineBuf = reinterpret_cast<VAProcPipelineParameterBuffer *>(m_va->GetCompBuffer(VAProcPipelineParameterBufferType, &pipelineVABuf, sizeof(VAProcPipelineParameterBuffer)));
     if (!pipelineBuf)
         throw h264_exception(UMC_ERR_FAILED);
     pipelineVABuf->SetDataSize(sizeof(VAProcPipelineParameterBuffer));
@@ -693,27 +702,21 @@ void PackerVA::PackProcessingInfo(H264DecoderFrameInfo * sliceInfo)
 void PackerVA::PackQmatrix(const H264ScalingPicParams * scaling)
 {
     UMCVACompBuffer *quantBuf;
-    VAIQMatrixBufferH264* pQmatrix_H264 = (VAIQMatrixBufferH264*)m_va->GetCompBuffer(VAIQMatrixBufferType, &quantBuf, sizeof(VAIQMatrixBufferH264));
+    auto* pQmatrix_H264 = reinterpret_cast<VAIQMatrixBufferH264 *>(m_va->GetCompBuffer(VAIQMatrixBufferType, &quantBuf, sizeof(VAIQMatrixBufferH264)));
     if (!pQmatrix_H264)
         throw h264_exception(UMC_ERR_FAILED);
     quantBuf->SetDataSize(sizeof(VAIQMatrixBufferH264));
 
-    int32_t i, j;
-    //may be just use memcpy???
-    for(j = 0; j < 6; j++)
+    int32_t j;
+
+    for(j = 0; j < 6; ++j)
     {
-        for(i = 0; i < 16; i++)
-        {
-             pQmatrix_H264->ScalingList4x4[j][i] = scaling->ScalingLists4x4[j].ScalingListCoeffs[i];
-        }
+        std::copy(std::begin(scaling->ScalingLists4x4[j].ScalingListCoeffs), std::end(scaling->ScalingLists4x4[j].ScalingListCoeffs), std::begin(pQmatrix_H264->ScalingList4x4[j]));
     }
 
-    for(j = 0; j < 2; j++)
+    for(j = 0; j < 2; ++j)
     {
-        for(i = 0; i < 64; i++)
-        {
-             pQmatrix_H264->ScalingList8x8[j][i] = scaling->ScalingLists8x8[j].ScalingListCoeffs[i];
-        }
+        std::copy(std::begin(scaling->ScalingLists8x8[j].ScalingListCoeffs), std::end(scaling->ScalingLists8x8[j].ScalingListCoeffs), std::begin(pQmatrix_H264->ScalingList8x8[j]));
     }
 }
 
@@ -859,13 +862,13 @@ Status PackerVA::QueryStreamOut(H264DecoderFrame* pFrame)
     if (!dst)
         return UMC_ERR_FAILED;
 
-    void const* src = buffer->GetPtr();
+    mfxU8 const* src = reinterpret_cast<mfxU8 *>(buffer->GetPtr());
     VM_ASSERT(src);
 
     int32_t const offset1 =  size * top;
     {
-        MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_HOTSPOTS, "memcpy");
-        memcpy_s(dst + offset1, size, src, size);
+        MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_HOTSPOTS, "std::copy");
+        std::copy(src, src + size, dst + offset1);
     }
 
     fei_va->ReleaseBuffer(buffer);
@@ -878,11 +881,11 @@ Status PackerVA::QueryStreamOut(H264DecoderFrame* pFrame)
     if (!buffer || !buffer->GetPtr())
         return UMC_ERR_FAILED;
 
-    src = buffer->GetPtr();
+    src = reinterpret_cast<mfxU8 *>(buffer->GetPtr());
     VM_ASSERT(src);
 
     int32_t const offset2 =  size * bottom;
-    memcpy_s(dst + offset2, size, src, size);
+    std::copy(src, src + size, dst + offset2);
 
     fei_va->ReleaseBuffer(buffer);
 
@@ -892,4 +895,4 @@ Status PackerVA::QueryStreamOut(H264DecoderFrame* pFrame)
 
 } // namespace UMC
 
-#endif // UMC_ENABLE_H264_VIDEO_DECODER
+#endif // MFX_ENABLE_H264_VIDEO_DECODE

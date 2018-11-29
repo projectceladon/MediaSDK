@@ -88,7 +88,9 @@ VAAPIVideoProcessing::VAAPIVideoProcessing():
 , m_procampFilterID(VA_INVALID_ID)
 , m_frcFilterID(VA_INVALID_ID)
 , m_deintFrameCount(0)
+#ifdef MFX_ENABLE_VPP_FRC
 , m_frcCyclicCounter(0)
+#endif
 , m_numFilterBufs(0)
 , m_primarySurface4Composition(NULL)
 {
@@ -598,12 +600,13 @@ mfxStatus VAAPIVideoProcessing::Execute(mfxExecuteParams *pParams)
                 else /* For BFF, second field is Top */
                     deint.flags = VA_DEINTERLACING_BOTTOM_FIELD_FIRST;
 
-                #if defined(LINUX_TARGET_PLATFORM_BXT) || defined(LINUX_TARGET_PLATFORM_BXTMIN)
-                if (MFX_PICSTRUCT_FIELD_TFF & pCurSurf_frameInfo->frameInfo.PicStruct)
-                    deint.flags = VA_DEINTERLACING_ONE_FIELD;
-                else /* For BFF case required to set all bits  */
-                    deint.flags = VA_DEINTERLACING_BOTTOM_FIELD_FIRST | VA_DEINTERLACING_BOTTOM_FIELD | VA_DEINTERLACING_ONE_FIELD;
-                #endif // defined(LINUX_TARGET_PLATFORM_BXTMIN) || defined(LINUX_TARGET_PLATFORM_BXT)
+                if (MFX_HW_APL == hwType)
+                {
+                    if (MFX_PICSTRUCT_FIELD_TFF & pCurSurf_frameInfo->frameInfo.PicStruct)
+                        deint.flags = VA_DEINTERLACING_ONE_FIELD;
+                    else /* For BFF case required to set all bits  */
+                        deint.flags = VA_DEINTERLACING_BOTTOM_FIELD_FIRST | VA_DEINTERLACING_BOTTOM_FIELD | VA_DEINTERLACING_ONE_FIELD;
+                }
             }
 
             /* For 30i->60p case we have to indicate
@@ -1068,7 +1071,7 @@ mfxStatus VAAPIVideoProcessing::Execute(mfxExecuteParams *pParams)
 #ifdef MFX_ENABLE_RGBP
     case MFX_FOURCC_RGBP:
 #endif
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= 1028)
     case MFX_FOURCC_RGB565:
 #endif
         m_pipelineParam[0].surface_color_standard = VAProcColorStandardNone;
@@ -1088,7 +1091,7 @@ mfxStatus VAAPIVideoProcessing::Execute(mfxExecuteParams *pParams)
 #ifdef MFX_ENABLE_RGBP
     case MFX_FOURCC_RGBP:
 #endif
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= 1028)
     case MFX_FOURCC_RGB565:
 #endif
         m_pipelineParam[0].output_color_standard = VAProcColorStandardNone;
@@ -1647,14 +1650,12 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
             m_pipelineParam[i].blend_state = &blend_state[i];
         }
 
-#if defined(LINUX_TARGET_PLATFORM_BXT) || defined(LINUX_TARGET_PLATFORM_BXTMIN)
         m_pipelineParam[i].pipeline_flags |= VA_PROC_PIPELINE_SUBPICTURES;
-        m_pipelineParam[i].filter_flags   |= VA_FILTER_SCALING_HQ;
-#else
-        m_pipelineParam[i].pipeline_flags  |= VA_PROC_PIPELINE_FAST;
-#endif
+        m_pipelineParam[i].filter_flags |= VA_FILTER_SCALING_HQ;
+
         m_pipelineParam[i].filters      = 0;
         m_pipelineParam[i].num_filters  = 0;
+        m_pipelineParam[i].output_background_color = 0;
 
         vaSts = vaCreateBuffer(m_vaDisplay,
                             m_vaContextVPP,
@@ -1692,6 +1693,7 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition_TiledVideoWall(mfxExecutePar
 
         outputparam.output_region  = &tilingParams[currTile].targerRect;
         outputparam.surface_region = &tilingParams[currTile].targerRect;
+        outputparam.output_background_color = 0;
 
         vaSts = vaCreateBuffer(m_vaDisplay,
                                   m_vaContextVPP,
@@ -1972,8 +1974,8 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition(mfxExecuteParams *pParams)
                 m_pipelineParam[refIdx].output_color_properties.color_range = (MFX_NOMINALRANGE_0_255 == pParams->VideoSignalInfoOut.NominalRange) ? VA_SOURCE_RANGE_FULL : VA_SOURCE_RANGE_REDUCED;
             }
         }
-    m_pipelineParam[refIdx].input_color_properties.chroma_sample_location  = VA_CHROMA_SITING_UNKNOWN;
-    m_pipelineParam[refIdx].output_color_properties.chroma_sample_location = VA_CHROMA_SITING_UNKNOWN;
+        m_pipelineParam[refIdx].input_color_properties.chroma_sample_location  = VA_CHROMA_SITING_UNKNOWN;
+        m_pipelineParam[refIdx].output_color_properties.chroma_sample_location = VA_CHROMA_SITING_UNKNOWN;
 
         switch (pRefSurf->frameInfo.PicStruct)
         {
@@ -1991,12 +1993,8 @@ mfxStatus VAAPIVideoProcessing::Execute_Composition(mfxExecuteParams *pParams)
         if (pParams->bComposite)
         {
             m_pipelineParam[refIdx].num_filters  = 0;
-#if defined(LINUX_TARGET_PLATFORM_BXT) || defined(LINUX_TARGET_PLATFORM_BXTMIN)
             m_pipelineParam[refIdx].pipeline_flags |= VA_PROC_PIPELINE_SUBPICTURES;
-            m_pipelineParam[refIdx].filter_flags   |= VA_FILTER_SCALING_HQ;
-#else
-            m_pipelineParam[refIdx].pipeline_flags  |= VA_PROC_PIPELINE_FAST;
-#endif
+            m_pipelineParam[refIdx].filter_flags |= VA_FILTER_SCALING_HQ;
         }
     }
 

@@ -352,7 +352,7 @@ int main(int argc, msdk_char *argv[])
     sAceParam                 defaultContrastParam        = { VPP_FILTER_DISABLED };
     sSteParam                 defaultSkinParam            = { 4, VPP_FILTER_DISABLED };
     sIStabParam               defaultImgStabParam         = { MFX_IMAGESTAB_MODE_BOXING, VPP_FILTER_DISABLED };
-    sSVCParam                 defaultSVCParam             = { 0, 0, 0, 0, 0, 0, 0, 0, VPP_FILTER_DISABLED };
+    sSVCParam                 defaultSVCParam             = { {}, VPP_FILTER_DISABLED };
     sVideoSignalInfoParam     defaultVideoSignalInfoParam;
     sMirroringParam           defaultMirroringParam;
 
@@ -767,8 +767,9 @@ int main(int argc, msdk_char *argv[])
                     // suppose bitrate & deblock control is going to be passed:
                     MctfRTParams->FilterStrength = MCTF_MID_FILTER_STRENGTH;
 #if defined (ENABLE_MCTF_EXT)
-                    MctfRTParams->BitsPerPixelx100k = mfxU32(MCTF_LOSSLESS_BPP * MCTF_BITRATE_MULTIPLIER);
+                    MctfRTParams->BitsPerPixelx100k = mfxU32(MCTF_AUTO_BPP * MCTF_BITRATE_MULTIPLIER);
                     MctfRTParams->Deblocking = MFX_CODINGOPTION_OFF;
+                    MctfRTParams->TemporalMode = MCTF_TEMPORAL_2REF_MODE;
 #endif
 
                     if (pInSurf[nInStreamInd]->Data.NumExtParam >= MAX_NUM_OF_ATTACHED_BUFFERS_FOR_IN_SUFACE) {

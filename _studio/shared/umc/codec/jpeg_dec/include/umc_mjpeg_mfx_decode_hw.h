@@ -22,7 +22,7 @@
 #define __UMC_MJPEG_VIDEO_DECODER_MFX_DECODE_HW_H
 
 #include "umc_defs.h"
-#if defined (UMC_ENABLE_MJPEG_VIDEO_DECODER)
+#if defined (MFX_ENABLE_MJPEG_VIDEO_DECODE)
 
 #include "umc_va_base.h"
 
@@ -97,7 +97,7 @@ protected:
 
     Status _DecodeField();
 
-    Status _DecodeHeader(CBaseStreamInput* in, int32_t* nUsedBytes);
+    Status _DecodeHeader(int32_t* nUsedBytes);
 
     virtual Status _DecodeField(MediaDataEx* in);
 
@@ -124,5 +124,5 @@ protected:
 } // end namespace UMC
 
 #endif //#if defined(UMC_VA)
-#endif // UMC_ENABLE_MJPEG_VIDEO_DECODER
+#endif // MFX_ENABLE_MJPEG_VIDEO_DECODE
 #endif //__UMC_MJPEG_VIDEO_DECODER_MFX_DECODE_HW_H

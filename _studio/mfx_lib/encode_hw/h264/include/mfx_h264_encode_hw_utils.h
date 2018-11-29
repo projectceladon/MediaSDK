@@ -939,6 +939,7 @@ namespace MfxHwH264Encode
             , m_singleFieldMode(false)
             , m_fieldCounter(0)
             , m_timeStamp(0)
+            , m_decodeTimeStamp(0)
             , m_minQP(0)
             , m_maxQP(0)
             , m_resetBRC(false)
@@ -1151,6 +1152,7 @@ namespace MfxHwH264Encode
         mfxU8   m_fid[2];               // progressive fid=[0,0]; tff fid=[0,1]; bff fid=[1,0]
         mfxU8   m_fieldCounter;
         mfxU64  m_timeStamp;
+        mfxI64  m_decodeTimeStamp;
 
         mfxU8   m_minQP;
         mfxU8   m_maxQP;
@@ -1263,7 +1265,7 @@ namespace MfxHwH264Encode
     {
         memset(&par,0,sizeof(par));
         par.FrameType = task->m_type[task->m_fid[0]];
-        par.picStruct = 0;
+        par.picStruct = task->GetPicStructForEncode();
         par.DisplayOrder = task->m_frameOrder;
         par.EncodedOrder = task->m_encOrder;
         par.PyramidLayer = (mfxU16)task->m_loc.level;
@@ -1945,6 +1947,8 @@ namespace MfxHwH264Encode
             DdiTask & task);
         void      AssignFrameTypes(
             DdiTask & newTask);
+        void      AssignDecodeTimeStamp(
+            DdiTask & task);
 
         mfxStatus UpdateBitstream(
             DdiTask & task,
@@ -2044,6 +2048,7 @@ namespace MfxHwH264Encode
         std::list<DdiTask>  m_histRun;
         std::list<DdiTask>  m_histWait;
         std::list<DdiTask>  m_encoding;
+        std::list<mfxU64>   m_timeStamps;
         UMC::Mutex          m_listMutex;
         DdiTask             m_lastTask;
         mfxU32              m_stagesToGo;

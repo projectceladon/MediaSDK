@@ -37,17 +37,13 @@ if( NOT DEFINED CMAKE_MFX_HOME )
   set( CMAKE_MFX_HOME "${CMAKE_HOME_DIRECTORY}/api" )
 endif()
 
-if( "$ENV{MFX_HOME}" STREQUAL "" )
-  set( ENV{MFX_HOME} ${CMAKE_HOME_DIRECTORY} )
+if(NOT DEFINED $ENV{MFX_HOME} )
+  set( MFX_HOME ${CMAKE_HOME_DIRECTORY} )
+else()
+  set( MFX_HOME $ENV{MFX_HOME} )
 endif()
 
 option( ENABLE_OPENCL "Build targets dependent on OpenCL?" ON )
-if( CMAKE_SYSTEM_NAME MATCHES Linux )
-  option( ENABLE_X11_DRI3 "Build X11 DRI3 versions of the targets?" OFF )
-  option( ENABLE_WAYLAND "Build WAYLAND versions of the targets?" OFF )
-endif()
-
-option( ENABLE_ITT "Build targets with ITT instrumentation support (requires VTune)?" OFF )
 
 # -DENABLE_ALL will enable all the dependencies and features unless user did not
 # explicitly switched some of them OFF, i.e. configuring in the following way
@@ -61,8 +57,15 @@ option( ENABLE_ITT "Build targets with ITT instrumentation support (requires VTu
 #
 option( ENABLE_ALL "Enable all dependencies and features?" OFF )
 
-cmake_dependent_option( ENABLE_TEXTLOG "Enable textlog tracing?" ON "ENABLE_ALL" OFF)
-cmake_dependent_option( ENABLE_STAT "Enable stat tracing?" ON "ENABLE_ALL" OFF)
+if( CMAKE_SYSTEM_NAME MATCHES Linux )
+  option( ENABLE_X11_DRI3 "Build X11 DRI3 versions of the targets?" ${ENABLE_ALL} )
+  option( ENABLE_WAYLAND "Build WAYLAND versions of the targets?" ${ENABLE_ALL} )
+endif()
+
+option( ENABLE_ITT "Build targets with ITT instrumentation support (requires VTune)?" ${ENABLE_ALL} )
+
+option( ENABLE_TEXTLOG "Enable textlog tracing?" "${ENABLE_ALL}")
+option( ENABLE_STAT "Enable stat tracing?" "${ENABLE_ALL}")
 
 # -DBUILD_ALL will enable all the build targets unless user did not explicitly
 # switched some targets OFF, i.e. configuring in the following way is possible:
@@ -71,10 +74,12 @@ cmake_dependent_option( ENABLE_STAT "Enable stat tracing?" ON "ENABLE_ALL" OFF)
 option( BUILD_ALL "Build all the targets?" OFF )
 
 option( BUILD_RUNTIME "Build mediasdk runtime (library, plugins, etc.)?" ON )
-option( BUILD_SAMPLES "Build samples?" ON )
+option( BUILD_DISPATCHER "Build dispatcher?" ON )
+cmake_dependent_option(BUILD_SAMPLES "Build samples?" ON "BUILD_DISPATCHER" OFF )
 # Tools depend on samples (sample_common) and can't be built without it. The
 # following BUILD_TOOLS option declaration assures that.
-cmake_dependent_option(BUILD_TOOLS "Build tools?" ON "BUILD_ALL;BUILD_SAMPLES" OFF)
+cmake_dependent_option(BUILD_TOOLS "Build tools?" "${BUILD_ALL}" "BUILD_SAMPLES" OFF)
+option(BUILD_TESTS "Build tests?" "${BUILD_ALL}")
 
 include( ${BUILDER_ROOT}/FindOpenCL.cmake )
 include( ${BUILDER_ROOT}/FindFunctions.cmake )
@@ -86,6 +91,11 @@ include( ${BUILDER_ROOT}/FindITT.cmake )
 include( ${BUILDER_ROOT}/FindGTest.cmake )
 include( ${BUILDER_ROOT}/ConfTargets.cmake )
 
+# should prepend others to define target mfx
+if (BUILD_DISPATCHER)
+  add_subdirectory(api/mfx_dispatch/linux)
+endif()
+
 if (BUILD_TOOLS)
   add_subdirectory(${CMAKE_HOME_DIRECTORY}/tools)
 endif()
@@ -95,11 +105,13 @@ if (BUILD_SAMPLES)
 endif()
 
 if (BUILD_RUNTIME)
-  add_subdirectory(${CMAKE_HOME_DIRECTORY}/contrib/SafeStringStaticLibrary/)
   add_subdirectory(${CMAKE_HOME_DIRECTORY}/_studio)
 endif()
 
-add_subdirectory(api/opensource/mfx_dispatch)
+if (BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
 
 create_plugins_cfg(${CMAKE_BINARY_DIR})
 
@@ -141,6 +153,9 @@ message("  CMAKE_C_FLAGS_DEBUG                     : ${CMAKE_C_FLAGS_DEBUG}")
 message("  CMAKE_CXX_FLAGS_DEBUG                   : ${CMAKE_CXX_FLAGS_DEBUG}")
 message("Install:")
 message("  CMAKE_INSTALL_PREFIX                    : ${CMAKE_INSTALL_PREFIX}")
+if (BUILD_TOOLS)
+  message("  CMAKE_INSTALL_FULL_BINDIR               : ${CMAKE_INSTALL_FULL_BINDIR}")
+endif()
 message("  CMAKE_INSTALL_FULL_INCLUDEDIR           : ${CMAKE_INSTALL_FULL_INCLUDEDIR}")
 message("  CMAKE_INSTALL_FULL_LIBDIR               : ${CMAKE_INSTALL_FULL_LIBDIR}")
 message("  CMAKE_INSTALL_FULL_DATADIR              : ${CMAKE_INSTALL_FULL_DATADIR}")
@@ -155,6 +170,8 @@ message("  ENABLE_TEXTLOG                          : ${ENABLE_TEXTLOG}")
 message("  ENABLE_STAT                             : ${ENABLE_STAT}")
 message("Build:")
 message("  BUILD_RUNTIME                           : ${BUILD_RUNTIME}")
+message("  BUILD_DISPATCHER                        : ${BUILD_DISPATCHER}")
 message("  BUILD_SAMPLES                           : ${BUILD_SAMPLES}")
+message("  BUILD_TESTS                             : ${BUILD_TESTS}")
 message("  BUILD_TOOLS                             : ${BUILD_TOOLS}")
 message("*****************************************************************************")

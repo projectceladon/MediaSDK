@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #include "mfx_common.h"
+#include "mfxvideo++int.h"
 
 #if defined(MFX_ENABLE_VP9_VIDEO_DECODE_HW)
 
@@ -41,14 +42,45 @@ static bool IsSameVideoParam(mfxVideoParam *newPar, mfxVideoParam *oldPar);
 inline
 bool CheckHardwareSupport(VideoCORE *p_core, mfxVideoParam *p_video_param)
 {
-    (void)p_core;
+    MFX_CHECK(p_core, false);
+    MFX_CHECK(p_video_param, false);
 
-#ifdef ANDROID
-    if (p_video_param->mfx.FrameInfo.Width > 4096 || p_video_param->mfx.FrameInfo.Height > 4096)
+    GUID guid;
+
+    mfxU32 profile = p_video_param->mfx.CodecProfile;
+
+    if (!profile)
     {
-        return false;
+        profile = UMC_VP9_DECODER::GetMinProfile(p_video_param->mfx.FrameInfo.BitDepthLuma, p_video_param->mfx.FrameInfo.ChromaFormat);
     }
-#endif
+
+    switch(profile)
+    {
+    case MFX_PROFILE_VP9_0:
+    {
+        guid = DXVA_Intel_ModeVP9_Profile0_VLD;
+        break;
+    }
+    case MFX_PROFILE_VP9_1:
+    {
+        guid = DXVA_Intel_ModeVP9_Profile1_YUV444_VLD;
+        break;
+    }
+    case MFX_PROFILE_VP9_2:
+    {
+        guid = DXVA_Intel_ModeVP9_Profile2_10bit_VLD;
+        break;
+    }
+    case MFX_PROFILE_VP9_3:
+    {
+        guid = DXVA_Intel_ModeVP9_Profile3_YUV444_10bit_VLD;
+        break;
+    }
+    default: return false;
+    }
+
+    mfxStatus mfxSts = p_core->IsGuidSupported(guid, p_video_param);
+    MFX_CHECK(mfxSts == MFX_ERR_NONE, false);
 
     return true;
 }
@@ -81,7 +113,7 @@ VideoDECODEVP9_HW::VideoDECODEVP9_HW(VideoCORE *p_core, mfxStatus *sts)
       m_uv_ac_delta_q(0)
 {
     memset(&m_sizesOfRefFrame, 0, sizeof(m_sizesOfRefFrame));
-    memset(&m_frameInfo.ref_frame_map, -1, sizeof(m_frameInfo.ref_frame_map)); // TODO: move to another place
+    memset(&m_frameInfo.ref_frame_map, VP9_INVALID_REF_FRAME, sizeof(m_frameInfo.ref_frame_map)); // TODO: move to another place
     ResetFrameInfo();
 
     if (sts)
@@ -121,7 +153,7 @@ mfxStatus VideoDECODEVP9_HW::Init(mfxVideoParam *par)
     if (!CheckHardwareSupport(m_core, par))
         return MFX_ERR_UNSUPPORTED;
 
-    if (!MFX_VPX_Utility::CheckVideoParam(par, MFX_CODEC_VP9, m_platform))
+    if (!MFX_VPX_Utility::CheckVideoParam(par, MFX_CODEC_VP9, m_platform, type))
         return MFX_ERR_INVALID_VIDEO_PARAM;
 
     m_FrameAllocator.reset(new mfx_UMC_FrameAllocator_D3D());
@@ -350,7 +382,7 @@ void VideoDECODEVP9_HW::ResetFrameInfo()
     m_frameInfo.currFrame = -1;
     m_frameInfo.frameCountInBS = 0;
     m_frameInfo.currFrameInBS = 0;
-    memset(&m_frameInfo.ref_frame_map, -1, sizeof(m_frameInfo.ref_frame_map)); // TODO: move to another place
+    memset(&m_frameInfo.ref_frame_map, VP9_INVALID_REF_FRAME, sizeof(m_frameInfo.ref_frame_map)); // TODO: move to another place
 }
 
 mfxStatus VideoDECODEVP9_HW::DecodeHeader(VideoCORE* core, mfxBitstream* bs, mfxVideoParam* par)
@@ -557,7 +589,7 @@ mfxStatus VideoDECODEVP9_HW::GetDecodeStat(mfxDecodeStat *pStat)
     m_stat.NumSkippedFrame = 0;
     m_stat.NumCachedFrame = 0;
 
-    memcpy_s(pStat, sizeof(m_stat), &m_stat, sizeof(m_stat));
+    *pStat = m_stat;
 
     return MFX_ERR_NONE;
 }
@@ -1161,7 +1193,7 @@ mfxStatus VideoDECODEVP9_HW::DecodeFrameHeader(mfxBitstream *in, VP9DecoderFrame
 
         // setup_tile_info()
         {
-            const mfxI32 alignedWidth = ALIGN_POWER_OF_TWO(info.width, MI_SIZE_LOG2);
+            const mfxI32 alignedWidth = AlignPowerOfTwo(info.width, MI_SIZE_LOG2);
             int minLog2TileColumns, maxLog2TileColumns, maxOnes;
             mfxU32 miCols = alignedWidth >> MI_SIZE_LOG2;
             GetTileNBits(miCols, minLog2TileColumns, maxLog2TileColumns);
@@ -1288,7 +1320,7 @@ mfxStatus VideoDECODEVP9_HW::PackHeaders(mfxBitstream *bs, VP9DecoderFrame const
         m_Packer->BeginFrame();
         VP9DecoderFrame packerInfo = info;
         m_Packer->PackAU(&vp9bs, &packerInfo);
-        m_Packer->EndFrame(); 
+        m_Packer->EndFrame();
     }
     catch (vp9_exception const&)
     {

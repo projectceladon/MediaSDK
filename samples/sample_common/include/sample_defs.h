@@ -39,11 +39,8 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 
 #if (MFX_VERSION >= 1026)
 #define ENABLE_MCTF
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
-//---MCTF, extended interface
-#define ENABLE_MCTF_EXT
+#undef ENABLE_MCTF_EXT
 enum {MCTF_BITRATE_MULTIPLIER = 100000};
-#endif
 #endif
 
 
@@ -151,6 +148,7 @@ enum LibVABackend
 #define MSDK_CHECK_STATUS(X, MSG)                {if ((X) < MFX_ERR_NONE) {MSDK_PRINT_RET_MSG(X, MSG); return X;}}
 #define MSDK_CHECK_STATUS_NO_RET(X, MSG)         {if ((X) < MFX_ERR_NONE) {MSDK_PRINT_RET_MSG(X, MSG);}}
 #define MSDK_CHECK_WRN(X, MSG)                   {if ((X) > MFX_ERR_NONE) {MSDK_PRINT_WRN_MSG(X, MSG);          }}
+#define MSDK_CHECK_ERR_NONE_STATUS(X, ERR,  MSG) {if ((X) != MFX_ERR_NONE) {MSDK_PRINT_RET_MSG(X, MSG); return ERR;}}
 #define MSDK_CHECK_PARSE_RESULT(P, X, ERR)       {if ((X) > (P)) {return ERR;}}
 
 #define MSDK_CHECK_STATUS_SAFE(X, FUNC, ADD)     {if ((X) < MFX_ERR_NONE) {ADD; MSDK_PRINT_RET_MSG(X, FUNC); return X;}}

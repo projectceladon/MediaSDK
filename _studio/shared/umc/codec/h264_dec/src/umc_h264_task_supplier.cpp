@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "umc_defs.h"
-#if defined (UMC_ENABLE_H264_VIDEO_DECODER)
+#if defined (MFX_ENABLE_H264_VIDEO_DECODE)
 
 #include <algorithm>
 #include <memory>
@@ -632,6 +632,18 @@ Status DecReferencePictureMarking::UpdateRefPicMarking(ViewItem &view, H264Decod
     // set MVC 'inter view flag'
     pFrame->SetInterViewRef(0 != sliceHeader->nal_ext.mvc.inter_view_flag, field_index);
 
+    // corruption recovery
+    if (pFrame->m_bIFlag)
+    {
+        for (H264DecoderFrame *pCurr = view.GetDPBList(0)->head(); pCurr; pCurr = pCurr->future())
+        {
+            if (pCurr->GetError() & ERROR_FRAME_SHORT_TERM_STUCK)
+            {
+                AddItemAndRun(pFrame, pCurr, UNSET_REFERENCE | FULL_FRAME | SHORT_TERM);
+            }
+        }
+    }
+
     if (pFrame->m_bIDRFlag)
     {
         // mark all reference pictures as unused
@@ -1073,6 +1085,10 @@ uint32_t MVC_Extension::GetLevelIDC() const
 
 ViewItem & MVC_Extension::AllocateAndInitializeView(H264Slice * slice)
 {
+    if (slice == nullptr)
+    {
+        throw h264_exception(UMC_ERR_NULL_PTR);
+    }
     ViewItem * view = FindView(slice->GetSliceHeader()->nal_ext.mvc.view_id);
     if (view)
         return *view;
@@ -3585,11 +3601,17 @@ Status TaskSupplier::AddSlice(H264Slice * pSlice, bool force)
             InitializeLayers(&m_accessUnit, 0, 0);
 
             size_t layersCount = m_accessUnit.GetLayersCount();
-            uint32_t maxDId = layersCount ? m_accessUnit.GetLayer(layersCount - 1)->GetSlice(0)->GetSliceHeader()->nal_ext.svc.dependency_id : 0;
+            uint32_t maxDId = 0;
+            if (layersCount && m_accessUnit.GetLayer(layersCount - 1)->GetSliceCount())
+            {
+                maxDId = m_accessUnit.GetLayer(layersCount - 1)->GetSlice(0)->GetSliceHeader()->nal_ext.svc.dependency_id;
+            }
             for (size_t i = 0; i < layersCount; i++)
             {
                 SetOfSlices * setOfSlices = m_accessUnit.GetLayer(i);
                 H264Slice * slice = setOfSlices->GetSlice(0);
+                if (slice == nullptr)
+                    continue;
 
                 AllocateAndInitializeView(slice);
 
@@ -3659,14 +3681,6 @@ Status TaskSupplier::AddSlice(H264Slice * pSlice, bool force)
             ViewItem &view = GetView(m_currentView);
             view.pCurFrame = setOfSlices->m_frame;
 
-            if (lastSlice->GetSeqParam()->gaps_in_frame_num_value_allowed_flag != 1)
-            {
-                // Check if DPB has ST frames with frame_num duplicating frame_num of new slice_type
-                // If so, unmark such frames as ST
-                H264DecoderFrame * pHead = view.GetDPBList(0)->head();
-                DPBSanitize(pHead, view.pCurFrame);
-            }
-
             const H264SliceHeader *sliceHeader = lastSlice->GetSliceHeader();
             uint32_t field_index = setOfSlices->m_frame->GetNumberByParity(sliceHeader->bottom_field_flag);
             if (!setOfSlices->m_frame->GetAU(field_index)->GetSliceCount())
@@ -3698,7 +3712,7 @@ Status TaskSupplier::AddSlice(H264Slice * pSlice, bool force)
                     slice->UpdateReferenceList(m_views, 0);
                 }
 
-                if (!setOfSlices->GetSlice(0)->IsSliceGroups())
+                if (count && !setOfSlices->GetSlice(0)->IsSliceGroups())
                 {
                     H264Slice * slice = setOfSlices->GetSlice(0);
                     if (slice->m_iFirstMB)
@@ -3954,9 +3968,24 @@ void TaskSupplier::InitFrameCounter(H264DecoderFrame * pFrame, const H264Slice *
         uint32_t NumShortTerm, NumLongTerm;
         dpb->countActiveRefs(NumShortTerm, NumLongTerm);
 
-        //set error flag only we have some references in DPB
         if ((NumShortTerm + NumLongTerm > 0))
+        {
+            // set error flag only we have some references in DPB
             pFrame->SetErrorFlagged(ERROR_FRAME_REFERENCE_FRAME);
+
+            // Leaving aside a legal frame_num wrapping cases, when a rapid _decrease_ of frame_num occurs due to frame gaps,
+            // frames marked as short-term prior the gap may get stuck in DPB for a very long sequence (up to '(1 << log2_max_frame_num) - 1').
+            // Reference lists are generated incorrectly. A potential recovery point can be at next I frame (if GOP is closed).
+            // So let's mark these potentially dangereous ST frames
+            // to remove them later from DPB in UpdateRefPicMarking() (if they're still there) at next I frame or SEI recovery point.
+            for (H264DecoderFrame *pFrm = view.GetDPBList(0)->head(); pFrm; pFrm = pFrm->future())
+            {
+                if ((pFrm->FrameNum() > sliceHeader->frame_num) && pFrm->isShortTermRef())
+                {
+                    pFrm->SetErrorFlagged(ERROR_FRAME_SHORT_TERM_STUCK);
+                }
+            }
+        }
     }
 
     if (sliceHeader->IdrPicFlag)
@@ -3967,6 +3996,9 @@ void TaskSupplier::InitFrameCounter(H264DecoderFrame * pFrame, const H264Slice *
     view.GetPOCDecoder(0)->DecodePictureOrderCount(pSlice, sliceHeader->frame_num);
 
     pFrame->m_bIDRFlag = (sliceHeader->IdrPicFlag != 0);
+
+    const int32_t recoveryFrameNum = view.GetDPBList(0)->GetRecoveryFrameCnt();
+    pFrame->m_bIFlag = (sliceHeader->slice_type == INTRASLICE) || (recoveryFrameNum != -1 && pFrame->FrameNum() == recoveryFrameNum);
 
     if (pFrame->m_bIDRFlag)
     {
@@ -4019,24 +4051,12 @@ void TaskSupplier::AddSliceToFrame(H264DecoderFrame *pFrame, H264Slice *pSlice)
     au_info->AddSlice(pSlice);
 }
 
-void TaskSupplier::DPBSanitize(H264DecoderFrame * pDPBHead, const H264DecoderFrame * pFrame)
-{
-    for (H264DecoderFrame *pFrm = pDPBHead; pFrm; pFrm = pFrm->future())
-    {
-        if ((pFrm != pFrame) &&
-            (pFrm->FrameNum() == pFrame->FrameNum()) &&
-             pFrm->isShortTermRef())
-        {
-            AddItemAndRun(pFrm, pFrm, UNSET_REFERENCE | FULL_FRAME | SHORT_TERM);
-        }
-    }
-}
-
 void TaskSupplier::DBPUpdate(H264DecoderFrame * pFrame, int32_t field)
 {
     H264DecoderFrameInfo *slicesInfo = pFrame->GetAU(field);
 
-    for (uint32_t i = 0; i < slicesInfo->GetSliceCount(); i++)
+    uint32_t count = slicesInfo->GetSliceCount();
+    for (uint32_t i = 0; i < count; i++)
     {
         H264Slice * slice = slicesInfo->GetSlice(i);
         if (!slice->IsReference())
@@ -4230,4 +4250,4 @@ Status TaskSupplier::AllocateNewFrame(const H264Slice *slice, H264DecoderFrame *
 } // H264DecoderFrame * TaskSupplier::AddFrame(H264Slice *pSlice)
 
 } // namespace UMC
-#endif // UMC_ENABLE_H264_VIDEO_DECODER
+#endif // MFX_ENABLE_H264_VIDEO_DECODE

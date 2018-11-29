@@ -74,7 +74,7 @@ append_property( mfx_common_hw COMPILE_FLAGS " -DMFX_RT" )
 list( APPEND mdirs
   scheduler vpp decode/vc1
   decode/mjpeg decode/h264 decode/mpeg2 cmrt_cross_platform
-  encode_hw/h265 encode_hw/h264 encode_hw/mpeg2 encode_hw/mjpeg
+  encode_hw/vp9 encode_hw/h265 encode_hw/h264 encode_hw/mpeg2 encode_hw/mjpeg
   decode/h265 decode/vp8 decode/vp9 mctf_package/mctf
   )
 include_directories( ${MSDK_LIB_ROOT}/fei/h264_common )
@@ -136,24 +136,35 @@ foreach( prefix ${MSDK_STUDIO_ROOT}/shared/src )
     ${prefix}/libmfx_core_factory.cpp
     ${prefix}/libmfx_core_vaapi.cpp
     ${prefix}/mfx_umc_alloc_wrapper.cpp
+    ${prefix}/mfx_umc_mjpeg_vpp.cpp
     ${prefix}/mfx_static_assert_structs.cpp
     ${prefix}/mfx_mfe_adapter.cpp
   )
 endforeach()
 
 set( USE_STRICT_NAME TRUE )
-set( MFX_LDFLAGS "${MFX_ORIG_LDFLAGS} -Wl,--version-script=${MSDK_LIB_ROOT}/libmfx.map" )
+set( MFX_LDFLAGS "${MFX_ORIG_LDFLAGS} -Wl,--version-script=${MSDK_LIB_ROOT}/libmfxhw.map" )
 
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-  set( mfxlibname mfxhw64 )
+if( DEFINED MFX_LIBNAME )
+  set( mfxlibname "${MFX_LIBNAME}")
 else()
-  set( mfxlibname mfxhw32 )
+  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set( mfxlibname mfxhw64 )
+  else()
+    set( mfxlibname mfxhw32 )
+  endif()
 endif()
 
-if( API_VERSION VERSION_GREATER 1.25 )
+if( ${MFX_ENABLE_MCTF} )
   set(MCTF_LIB "mctf_hw")
 else()
   set(MCTF_LIB "")
+endif()
+
+if( ${MFX_ENABLE_ASC} )
+  set(ASC_LIB "asc")
+else()
+  set(ASC_LIB "")
 endif()
 
 if( MFX_ENABLE_KERNELS )
@@ -184,7 +195,7 @@ list( APPEND LIBS
   ${GENX_LIB}
   mfx_common
   mfx_common_hw
-  asc
+  ${ASC_LIB}
   ${MCTF_LIB}
   vpp_hw
   h264_common
@@ -207,11 +218,6 @@ set_target_properties(${mfxlibname} PROPERTIES SOVERSION ${mfx_version_major})
 
 install(TARGETS ${mfxlibname} LIBRARY DESTINATION ${MFX_MODULES_DIR})
 
-#get_target_property(bindir ${mfxlibname} RUNTIME_OUTPUT_DIRECTORY) 
-
-# compatibility staff
-install( CODE "execute_process(
-  COMMAND ${CMAKE_COMMAND} -E create_symlink
-  ${MFX_MODULES_DIR}/lib${mfxlibname}.so.${mfx_version_major}.${mfx_version_minor}
-  ${MFX_MODULES_DIR}/lib${mfxlibname}-p.so.${mfx_version_major}.${mfx_version_minor} )"
-)
+set( PKG_CONFIG_FNAME "${CMAKE_LIB_DIR}/${CMAKE_BUILD_TYPE}/lib${mfxlibname}.pc")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/pkg-config.pc.cmake" ${PKG_CONFIG_FNAME} @ONLY)
+install( FILES ${PKG_CONFIG_FNAME} DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig )

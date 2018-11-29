@@ -27,7 +27,16 @@ endif
 # Passing Android-dependency information to the code
 MFX_CFLAGS += \
   -DMFX_ANDROID_VERSION=$(MFX_ANDROID_VERSION) \
-  -include mfx_config.h
+  -include mfx_android_config.h
+
+# Setting version information for the binaries
+ifeq ($(MFX_VERSION),)
+  MFX_VERSION = "6.0.010"
+endif
+
+MFX_CFLAGS += \
+  -DMFX_FILE_VERSION=\"`echo $(MFX_VERSION) | cut -f 1 -d.``date +.%-y.%-m.%-d`\" \
+  -DMFX_PRODUCT_VERSION=\"$(MFX_VERSION)\"
 
 #  Security
 MFX_CFLAGS += \
@@ -36,6 +45,18 @@ MFX_CFLAGS += \
   -O2 -D_FORTIFY_SOURCE=2 \
   -Wformat -Wformat-security \
   -fexceptions -frtti
+
+ifeq ($(MFX_ENABLE_ITT_TRACES),)
+  # Enabled ITT traces by default
+  MFX_ENABLE_ITT_TRACES := true
+endif
+
+ifeq ($(MFX_ENABLE_ITT_TRACES),true)
+  MFX_CFLAGS += -DMFX_TRACE_ENABLE_ITT
+endif
+
+# LibVA support.
+MFX_CFLAGS_LIBVA := -DLIBVA_SUPPORT -DLIBVA_ANDROID_SUPPORT
 
 # Setting usual paths to include files
 MFX_INCLUDES := \

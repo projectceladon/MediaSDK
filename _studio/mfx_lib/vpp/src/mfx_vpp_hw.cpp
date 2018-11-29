@@ -406,7 +406,8 @@ mfxStatus CpuFrc::DoCpuFRC_AndUpdatePTS(
     mfxFrameSurface1 *output,
     mfxStatus *intSts)
 {
-    if(NULL == input) return MFX_ERR_MORE_DATA;
+    if(nullptr == input) return MFX_ERR_MORE_DATA;
+    if(nullptr == output) return MFX_ERR_MORE_SURFACE;
     if (FRC_STANDARD & m_frcMode) // standard FRC (input frames count -> output frames count)
     {
         return m_stdFrc.DoCpuFRC_AndUpdatePTS(input, output, intSts);
@@ -3105,11 +3106,12 @@ mfxStatus VideoVPPHW::VppFrameCheck(
 
     if (VPP_SYNC_WORKLOAD == m_workloadMode)
     {
+        pTask->bRunTimeCopyPassThrough = (true == m_config.m_bCopyPassThroughEnable && false == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf));
+
         // submit task
         SyncTaskSubmission(pTask);
 
-        if (false == m_config.m_bCopyPassThroughEnable ||
-            (true == m_config.m_bCopyPassThroughEnable && true == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf)))
+        if (false == pTask->bRunTimeCopyPassThrough)
         {
             // configure entry point
             pEntryPoint[0].pRoutine = VideoVPPHW::QueryTaskRoutine;
@@ -3126,6 +3128,8 @@ mfxStatus VideoVPPHW::VppFrameCheck(
         if (false == m_config.m_bCopyPassThroughEnable ||
             (true == m_config.m_bCopyPassThroughEnable && true == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf)))
         {
+            pTask->bRunTimeCopyPassThrough = false;
+
             // configure entry point
             pEntryPoint[1].pRoutine = VideoVPPHW::QueryTaskRoutine;
             pEntryPoint[1].pParam = (void *) pTask;
@@ -3144,6 +3148,8 @@ mfxStatus VideoVPPHW::VppFrameCheck(
         }
         else
         {
+            pTask->bRunTimeCopyPassThrough = true;
+
             // configure entry point
             pEntryPoint[0].pRoutine = VideoVPPHW::AsyncTaskSubmission;
             pEntryPoint[0].pParam = (void *) pTask;
@@ -3746,8 +3752,7 @@ mfxStatus VideoVPPHW::SyncTaskSubmission(DdiTask* pTask)
 #ifdef MFX_ENABLE_MCTF
     if (pTask->outputForApp.pSurf)
     {
-        if (true == m_config.m_bCopyPassThroughEnable &&
-            false == IsRoiDifferent(pTask->input.pSurf, pTask->outputForApp.pSurf))
+        if (true == pTask->bRunTimeCopyPassThrough)
         {
             sts = CopyPassThrough(pTask->input.pSurf, pTask->outputForApp.pSurf);
             m_taskMngr.CompleteTask(pTask);
@@ -3763,8 +3768,7 @@ mfxStatus VideoVPPHW::SyncTaskSubmission(DdiTask* pTask)
             return MFX_ERR_UNDEFINED_BEHAVIOR;
     }
 #else
-    if (true == m_config.m_bCopyPassThroughEnable &&
-        false == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf))
+    if (true == pTask->bRunTimeCopyPassThrough)
     {
         sts = CopyPassThrough(pTask->input.pSurf, pTask->output.pSurf);
         m_taskMngr.CompleteTask(pTask);
@@ -4672,6 +4676,15 @@ mfxStatus ValidateParams(mfxVideoParam *par, mfxVppCaps *caps, VideoCORE *core, 
                 sts = GetWorstSts(sts, MFX_ERR_UNSUPPORTED);
             }
 
+#if defined(MFX_ENABLE_SCENE_CHANGE_DETECTION_VPP)
+            if (extDI->Mode == MFX_DEINTERLACING_ADVANCED_SCD &&
+                par->vpp.Out.FourCC != MFX_FOURCC_NV12 &&
+                par->vpp.Out.FourCC != MFX_FOURCC_YV12)
+            {
+                // SCD kernels support only planar 8-bit formats
+                sts = GetWorstSts(sts, MFX_ERR_UNSUPPORTED);
+            }
+#endif
             break;
         } //case MFX_EXTBUFF_VPP_DEINTERLACING
         case MFX_EXTBUFF_VPP_DOUSE:

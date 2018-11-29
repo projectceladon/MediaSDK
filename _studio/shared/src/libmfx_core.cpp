@@ -796,7 +796,7 @@ mfxStatus CommonCORE::QueryPlatform(mfxPlatform* platform)
     case MFX_HW_CFL    : platform->CodeName = MFX_PLATFORM_COFFEELAKE;  break;
     case MFX_HW_CNL    : platform->CodeName = MFX_PLATFORM_CANNONLAKE;  break;
 #endif
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= 1027)
     case MFX_HW_ICL    :
     case MFX_HW_ICL_LP : platform->CodeName = MFX_PLATFORM_ICELAKE;     break;
 #endif
@@ -1295,6 +1295,9 @@ mfxStatus CoreDoSWFastCopy(mfxFrameSurface1 *pDst, mfxFrameSurface1 *pSrc, int c
     switch (pDst->Info.FourCC)
     {
     case MFX_FOURCC_P010:
+#if (MFX_VERSION >= MFX_VERSION_NEXT)
+    case MFX_FOURCC_P016:
+#endif
 
         if (pSrc->Info.Shift != pDst->Info.Shift)
         {
@@ -1434,6 +1437,54 @@ mfxStatus CoreDoSWFastCopy(mfxFrameSurface1 *pDst, mfxFrameSurface1 *pSrc, int c
         }
 #endif
 
+    case MFX_FOURCC_Y210:
+#if (MFX_VERSION >= MFX_VERSION_NEXT)
+    case MFX_FOURCC_Y216:
+#endif
+        MFX_CHECK_NULL_PTR1(pSrc->Data.Y);
+
+        //we use 8u copy, so we need to increase ROI to handle 16 bit samples
+        roi.width *= 4;
+        if (pSrc->Info.Shift != pDst->Info.Shift)
+        {
+            mfxU8 lshift = 0;
+            mfxU8 rshift = 0;
+            if(pSrc->Info.Shift != 0)
+                rshift = (mfxU8)(16 - pDst->Info.BitDepthLuma);
+            else
+                lshift = (mfxU8)(16 - pDst->Info.BitDepthLuma);
+
+            sts = FastCopy::CopyAndShift((mfxU16*)(pDst->Data.Y), dstPitch, (mfxU16 *)pSrc->Data.Y, srcPitch, roi, lshift, rshift, copyFlag);
+        }
+        else
+            sts = FastCopy::Copy(pDst->Data.Y, dstPitch, pSrc->Data.Y, srcPitch, roi, copyFlag);
+
+        MFX_CHECK_STS(sts);
+        break;
+    case MFX_FOURCC_Y410:
+    {
+        MFX_CHECK_NULL_PTR1(pDst->Data.Y410);
+
+        mfxU8* ptrDst = (mfxU8*) pDst->Data.Y410;
+        mfxU8* ptrSrc = (mfxU8*) pSrc->Data.Y410;
+
+        roi.width *= 4;
+
+        sts = FastCopy::Copy(ptrDst, dstPitch, ptrSrc, srcPitch, roi, copyFlag);
+        MFX_CHECK_STS(sts);
+        break;
+    }
+#if (MFX_VERSION >= MFX_VERSION_NEXT)
+    case MFX_FOURCC_Y416:
+        MFX_CHECK_NULL_PTR1(pSrc->Data.U16);
+
+        //we use 8u copy, so we need to increase ROI to handle 16 bit samples
+        roi.width *= 8;
+        sts = FastCopy::Copy((mfxU8*)pDst->Data.U16, dstPitch, (mfxU8*)pSrc->Data.U16, srcPitch, roi, copyFlag);
+
+        MFX_CHECK_STS(sts);
+        break;
+#endif
     case MFX_FOURCC_AYUV:
     case MFX_FOURCC_RGB4:
     case MFX_FOURCC_BGR4:
@@ -1543,7 +1594,7 @@ mfxStatus CommonCORE::CopyFrame(mfxFrameSurface1 *dst, mfxFrameSurface1 *src)
 {
     if(!dst || !src)
         return MFX_ERR_NULL_PTR;
-    if(src->Data.Y && dst->Data.Y) //input video frame is locked or system, call old copy function
+    if(!LumaIsNull(src) && !LumaIsNull(dst)) //input video frame is locked or system, call old copy function
     {
         mfxU16 srcMemType = MFX_MEMTYPE_SYSTEM_MEMORY | MFX_MEMTYPE_EXTERNAL_FRAME;
         mfxU16 dstMemType = MFX_MEMTYPE_SYSTEM_MEMORY | MFX_MEMTYPE_EXTERNAL_FRAME;
@@ -1567,7 +1618,7 @@ mfxStatus CommonCORE::CopyFrame(mfxFrameSurface1 *dst, mfxFrameSurface1 *src)
         MFX_CHECK_STS(sts);
         return sts;
     }
-    else if(src->Data.Y && dst->Data.MemId)
+    else if(!LumaIsNull(src) && dst->Data.MemId)
     {
         mfxHDLPair dstHandle = {};
         mfxU16 dstMemType = MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET;
@@ -1629,8 +1680,10 @@ bool CommonCORE::CheckOpaqueRequest(mfxFrameAllocRequest *request,
                                     mfxU32 NumOpaqueSurface,
                                     bool ExtendedSearch)
 {
-    if (pOpaqueSurface &&
-        request->NumFrameMin != NumOpaqueSurface)
+    if (!pOpaqueSurface || !request)
+        return false;
+
+    if (request->NumFrameMin != NumOpaqueSurface)
         return false;
 
     if (!(request->Type  & MFX_MEMTYPE_OPAQUE_FRAME))
@@ -1669,6 +1722,9 @@ bool CommonCORE::IsOpaqSurfacesAlreadyMapped(mfxFrameSurface1 **pOpaqueSurface,
                                              mfxFrameAllocResponse *response,
                                              bool ExtendedSearch)
 {
+    if (!pOpaqueSurface || !response)
+        return false;
+
     {
         UMC::AutomaticUMCMutex guard(m_guard);
 

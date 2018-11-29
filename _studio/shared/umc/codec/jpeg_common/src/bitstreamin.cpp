@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "umc_defs.h"
-#if defined (UMC_ENABLE_MJPEG_VIDEO_DECODER)
+#if defined (MFX_ENABLE_MJPEG_VIDEO_DECODE)
 #include "jpegbase.h"
 #include "basestream.h"
 #include "basestreamin.h"
@@ -109,7 +109,7 @@ JERRCODE CBitStreamInput::FillBuffer(int nMinBytes)
 
   if(remainder && !m_eod)
   {
-    memmove(m_pData, &m_pData[m_currPos], (unsigned int)remainder);
+    std::copy(m_pData + m_currPos, m_pData + m_DataLen, m_pData);
     m_currPos = 0;
   }
 
@@ -254,4 +254,4 @@ JERRCODE CBitStreamInput::ReadDword(int* dword)
   return JPEG_OK;
 } // CBitStreamInput::ReadDword()
 
-#endif // UMC_ENABLE_MJPEG_VIDEO_DECODER
+#endif // MFX_ENABLE_MJPEG_VIDEO_DECODE

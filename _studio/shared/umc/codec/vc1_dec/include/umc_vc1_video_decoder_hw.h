@@ -20,7 +20,7 @@
 
 #include "umc_defs.h"
 
-#if defined (UMC_ENABLE_VC1_VIDEO_DECODER)
+#if defined (MFX_ENABLE_VC1_VIDEO_DECODE)
 
 #ifndef __UMC_VC1_VIDEO_DECODER_HW_H_
 #define __UMC_VC1_VIDEO_DECODER_HW_H_
@@ -93,7 +93,6 @@ namespace UMC
                 // special header (with frame size) in case of .rcv format
                 SCoffset = -VC1FHSIZE;
 
-            m_pStore = m_pStore;
             Status umcRes = UMC_ERR_NOT_ENOUGH_DATA;
             try
             {
@@ -182,5 +181,5 @@ namespace UMC
 }
 
 #endif //__UMC_VC1_VIDEO_DECODER_HW_H_
-#endif //UMC_ENABLE_VC1_VIDEO_DECODER
+#endif //MFX_ENABLE_VC1_VIDEO_DECODE
 

@@ -34,21 +34,18 @@
 #define MFX_ENABLE_VPP_ROTATION
 #define MFX_ENABLE_VPP_VIDEO_SIGNAL
 
-
-
-
-#if defined(LINUX32) || defined(LINUX64)
-    #undef  MFX_VA_LINUX
-    #define MFX_VA_LINUX
-#endif // #if defined(LINUX32) || defined(LINUX64)
+#ifdef MFX_VA
+    #if defined(LINUX32) || defined(LINUX64)
+        #include <va/va_version.h>
+        #undef  MFX_VA_LINUX
+        #define MFX_VA_LINUX
+    #endif
+#endif
 
 #if !defined(LINUX_TARGET_PLATFORM) || defined(LINUX_TARGET_PLATFORM_BDW) || defined(LINUX_TARGET_PLATFORM_CFL) || defined(LINUX_TARGET_PLATFORM_BXT)
     #if !defined(ANDROID)
         // HW decoders are part of library
         #define MFX_ENABLE_H264_VIDEO_DECODE
-        #define MFX_ENABLE_H265_VIDEO_DECODE
-        #define MFX_ENABLE_VP8_VIDEO_DECODE_HW
-        #define MFX_ENABLE_VP9_VIDEO_DECODE_HW
         
         #if MFX_VERSION >= 1025
             #if !defined(AS_H264LA_PLUGIN)
@@ -56,66 +53,21 @@
             #endif
         #endif
 
-        // mpeg2
-        #define MFX_ENABLE_MPEG2_VIDEO_DECODE
-        #define MFX_ENABLE_MPEG2_VIDEO_ENCODE
-
-        //// vc1
-        #define MFX_ENABLE_VC1_VIDEO_DECODE
-
-        // mjpeg
-        #define MFX_ENABLE_MJPEG_VIDEO_DECODE
-        #define MFX_ENABLE_MJPEG_VIDEO_ENCODE
-
         // vpp
         #define MFX_ENABLE_DENOISE_VIDEO_VPP
         #define MFX_ENABLE_VPP
-        #if !defined(LINUX_TARGET_PLATFORM_BXT)
-            #define MFX_ENABLE_SCENE_CHANGE_DETECTION_VPP
-        #endif
 
-        #define MFX_ENABLE_MPEG2_VIDEO_ENCODE_HW
         #if defined(AS_H264LA_PLUGIN)
             #define MFX_ENABLE_LA_H264_VIDEO_HW
         #endif
-
-        // H265 FEI plugin
-
-        // aac
-        #define MFX_ENABLE_AAC_AUDIO_DECODE
-
-        //mp3
-        #define MFX_ENABLE_MP3_AUDIO_DECODE
-
-        // av1
 
     #else // #if !defined(ANDROID)
         #include "mfx_android_defs.h"
     #endif // #if !defined(ANDROID)
 
     #if defined(AS_H264LA_PLUGIN)
-        #undef MFX_ENABLE_MJPEG_VIDEO_DECODE
-        #undef MFX_ENABLE_MJPEG_VIDEO_ENCODE
         #undef MFX_ENABLE_H264_VIDEO_FEI_ENCODE
         #undef MFX_ENABLE_VPP
-    #endif
-
-    #if defined(AS_HEVC_FEI_ENCODE_PLUGIN)
-        #undef MFX_ENABLE_H265_VIDEO_DECODE
-        #undef MFX_ENABLE_H264_VIDEO_DECODE
-        #undef MFX_ENABLE_H264_VIDEO_ENCODE
-        #undef MFX_ENABLE_MPEG2_VIDEO_DECODE
-        #undef MFX_ENABLE_MPEG2_VIDEO_ENCODE
-        #undef MFX_ENABLE_VC1_VIDEO_DECODE
-        #undef MFX_ENABLE_MJPEG_VIDEO_DECODE
-        #undef MFX_ENABLE_MJPEG_VIDEO_ENCODE
-        #undef MFX_ENABLE_DENOISE_VIDEO_VPP
-        #undef MFX_ENABLE_VPP
-        #undef MFX_ENABLE_SCENE_CHANGE_DETECTION_VPP
-        #undef MFX_ENABLE_MPEG2_VIDEO_ENCODE_HW
-        #undef MFX_ENABLE_AAC_AUDIO_DECODE
-        #undef MFX_ENABLE_MP3_AUDIO_DECODE
-        #undef MFX_ENABLE_VP8_VIDEO_DECODE_HW
     #endif
 
 #else // LINUX_TARGET_PLATFORM
@@ -149,19 +101,41 @@
     //#define MFX_ENABLE_HEVCE_FADE_DETECTION
 #endif
 
-#if MFX_VERSION >= 1026
-    #define MFX_ENABLE_MCTF
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if defined(MFX_ENABLE_VP9_VIDEO_ENCODE)
+    #define MFX_ENABLE_VP9_VIDEO_ENCODE_HW
+#endif
+
+#if defined(MFX_ENABLE_VP9_VIDEO_DECODE)
+#define MFX_ENABLE_VP9_VIDEO_DECODE_HW
+#endif
+
+#if defined(MFX_ENABLE_VP8_VIDEO_DECODE)
+#define MFX_ENABLE_VP8_VIDEO_DECODE_HW
+#endif
+
+#if defined(MFX_ENABLE_ASC)
+    #define MFX_ENABLE_SCENE_CHANGE_DETECTION_VPP
+#endif
+
+#if (MFX_VERSION >= MFX_VERSION_NEXT) && defined(MFX_ENABLE_MCTF)
     #define MFX_ENABLE_MCTF_EXT // extended MCTF interface
 #endif
+
+#if MFX_VERSION >= 1028
+    #define MFX_ENABLE_RGBP
+    #define MFX_ENABLE_FOURCC_RGB565
 #endif
 
 // The line below HAS to be changed to MFX_VERSION specific version i.e. 1027
 // after inclusion of respective features into official API
 #if MFX_VERSION >= MFX_VERSION_NEXT
     #define MFX_ENABLE_VPP_RUNTIME_HSBC
-    #define MFX_ENABLE_RGBP
-	#define MFX_ENABLE_FOURCC_RGB565
+#endif
+
+#if defined(MFX_VA_LINUX)
+    #if VA_CHECK_VERSION(1,3,0)
+        #define MFX_ENABLE_QVBR
+    #endif
 #endif
 
 #endif // _MFX_CONFIG_H_

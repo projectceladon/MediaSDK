@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "umc_defs.h"
-#if defined (UMC_ENABLE_H264_VIDEO_DECODER)
+#if defined (MFX_ENABLE_H264_VIDEO_DECODE)
 
 #ifndef __UMC_H264_TASK_SUPPLIER_H
 #define __UMC_H264_TASK_SUPPLIER_H
@@ -597,7 +597,6 @@ protected:
     virtual void OnFullFrame(H264DecoderFrame * pFrame);
     virtual bool ProcessNonPairedField(H264DecoderFrame * pFrame) = 0;
 
-    void DPBSanitize(H264DecoderFrame * pDPBHead, const H264DecoderFrame * pFrame);
     void DBPUpdate(H264DecoderFrame * pFrame, int32_t field);
 
     virtual void AddFakeReferenceFrame(H264Slice * pSlice);
@@ -726,7 +725,7 @@ inline int32_t CalculateDPBSize(uint8_t & level_idc, int32_t width, int32_t heig
             break;
         }
 
-        if (width == 0 && height == 0)
+        if (width == 0 || height == 0)
         {
             throw h264_exception(UMC_ERR_INVALID_PARAMS);
         }
@@ -838,4 +837,4 @@ inline uint32_t GetInterViewFrameRefs(ViewList &views, int32_t viewId, int32_t a
 } // namespace UMC
 
 #endif // __UMC_H264_TASK_SUPPLIER_H
-#endif // UMC_ENABLE_H264_VIDEO_DECODER
+#endif // MFX_ENABLE_H264_VIDEO_DECODE

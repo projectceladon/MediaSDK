@@ -36,8 +36,9 @@ if(MFX_ENABLE_KERNELS)
   set( prefix ${MSDK_GENX_ROOT}/asc/src )
   list( APPEND sources
       ${prefix}/genx_scd_bdw_isa.cpp
-      ${prefix}/genx_scd_bxt_isa.cpp
       ${prefix}/genx_scd_cnl_isa.cpp
+      ${prefix}/genx_scd_icl_isa.cpp
+      ${prefix}/genx_scd_icllp_isa.cpp
       ${prefix}/genx_scd_skl_isa.cpp
   )
 
@@ -74,14 +75,20 @@ if(MFX_ENABLE_KERNELS)
     ${prefix}/genx_skl_simple_me_isa.cpp
   )
 
-  if( API_VERSION VERSION_GREATER 1.25 )
+  if( ${MFX_ENABLE_MCTF} )
     set( prefix ${MSDK_GENX_ROOT}/mctf/src )
     list( APPEND sources
       ${prefix}/genx_mc_bdw_isa.cpp
+      ${prefix}/genx_mc_icl_isa.cpp
+      ${prefix}/genx_mc_icllp_isa.cpp
       ${prefix}/genx_mc_skl_isa.cpp
       ${prefix}/genx_me_bdw_isa.cpp
+      ${prefix}/genx_me_icl_isa.cpp
+      ${prefix}/genx_me_icllp_isa.cpp
       ${prefix}/genx_me_skl_isa.cpp
       ${prefix}/genx_sd_bdw_isa.cpp
+      ${prefix}/genx_sd_icl_isa.cpp
+      ${prefix}/genx_sd_icllp_isa.cpp
       ${prefix}/genx_sd_skl_isa.cpp
     )
   endif()

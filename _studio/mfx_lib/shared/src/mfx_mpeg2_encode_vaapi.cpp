@@ -20,7 +20,7 @@
 
 #include "mfx_common.h"
 
-#if defined(MFX_ENABLE_MPEG2_VIDEO_ENCODE_HW) && defined(MFX_VA_LINUX)
+#if defined(MFX_ENABLE_MPEG2_VIDEO_ENCODE) && defined(MFX_VA_LINUX)
 
 #include <va/va.h>
 #include <assert.h>
@@ -54,7 +54,7 @@ do {                                               \
 namespace
 {
 
-    mfxU8 ConvertRateControlMFX2VAAPI(mfxU8 rateControl)
+    uint32_t ConvertRateControlMFX2VAAPI(mfxU8 rateControl)
     {
         switch (rateControl)
         {
@@ -65,7 +65,7 @@ namespace
         default: assert(!"Unsupported RateControl"); return 0;
         }
 
-    } // mfxU8 ConvertRateControlMFX2VAAPI(mfxU8 rateControl)
+    }
 
     VAProfile ConvertProfileTypeMFX2VAAPI(mfxU8 type)
     {
@@ -191,9 +191,11 @@ namespace
         sps.aspect_ratio_information = winSps.AspectRatio;
         // sps.vbv_buffer_size = winSps.vbv_buffer_size; // B = 16 * 1024 * vbv_buffer_size
 
-        sps.intra_period    = pExecuteBuffers->m_GOPPictureSize; // 22??
+        sps.intra_period    = pExecuteBuffers->m_GOPPictureSize;
         sps.ip_period       = pExecuteBuffers->m_GOPRefDist;
-        sps.bits_per_second = winSps.bit_rate; // 104857200;
+        // For VBR maxBitrate should be used as sps parameter, target bitrate has no place in sps, only in BRC
+        sps.bits_per_second = (winSps.RateControlMethod == MFX_RATECONTROL_VBR && winSps.MaxBitRate > winSps.bit_rate) ?
+                winSps.MaxBitRate : winSps.bit_rate;
         if (winSps.vbv_buffer_size)
         {
             sps.vbv_buffer_size = winSps.vbv_buffer_size;
@@ -326,10 +328,10 @@ namespace
             assert(0);
         }
 
-//         if (pUserData && userDataLen > 0)
+//         if (pUserData && userDataLen > 4)
 //         {
-//             mfxU32 len = MFX_MIN(userDataLen - 4, sizeof(pps.user_data)/sizeof(pps.user_data[0]));
-//             memcpy_s(pps.user_data, sizeof(pps.user_data)/sizeof(pps.user_data[0]), pUserData + 4, len);
+//             mfxU32 len = std:min<mfxU32>(userDataLen - 4, sizeof(pps.user_data)/sizeof(pps.user_data[0]));
+//             std::copy(pUserData + 4, pUserData + 4 + len, pps.user_data);
 //             pps.user_data_length = len;
 //         }
     } // void FillPps(...)
@@ -543,7 +545,7 @@ mfxStatus VAAPIEncoder::Init(ENCODE_FUNC func, ExecuteBuffers* pExecuteBuffers)
 
     //m_caps.SkipFrame = (attrib[2].value & (~VA_ATTRIB_NOT_SUPPORTED)) ? 1 : 0 ;
 
-    mfxU8 vaRCType = ConvertRateControlMFX2VAAPI(pExecuteBuffers->m_sps.RateControlMethod);
+    uint32_t vaRCType = ConvertRateControlMFX2VAAPI(pExecuteBuffers->m_sps.RateControlMethod);
 
     if ((attrib[1].value & vaRCType) == 0)
         return MFX_ERR_DEVICE_FAILED;
@@ -1659,7 +1661,6 @@ mfxStatus VAAPIEncoder::FillBSBuffer(mfxU32 nFeedback,mfxU32 nBitstream, mfxBits
 
         MFX_CHECK(ret == MFX_ERR_NONE, MFX_ERR_UNDEFINED_BEHAVIOR);
 
-        //memcpy(pBitstream->Data + pBitstream->DataLength + pBitstream->DataOffset, Frame.Y, queryStatus.bitstreamSize);
         pBitstream->DataLength += bitstreamSize;
 
         {
@@ -1672,5 +1673,5 @@ mfxStatus VAAPIEncoder::FillBSBuffer(mfxU32 nFeedback,mfxU32 nBitstream, mfxBits
     return sts;
 } // mfxStatus VAAPIEncoder::FillBSBuffer(mfxU32 nFeedback,mfxU32 nBitstream, mfxBitstream* pBitstream, Encryption *pEncrypt)
 
-#endif // (MFX_ENABLE_MPEG2_VIDEO_ENCODE_HW) && (MFX_VA_LINUX)
+#endif // (MFX_ENABLE_MPEG2_VIDEO_ENCODE) && (MFX_VA_LINUX)
 /* EOF */

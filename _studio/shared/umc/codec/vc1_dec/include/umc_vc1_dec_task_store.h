@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 #include "umc_defs.h"
-#if defined (UMC_ENABLE_VC1_VIDEO_DECODER)
+#if defined (MFX_ENABLE_VC1_VIDEO_DECODE)
 
 #ifndef __UMC_UMC_VC1_DEC_TASK_STORE_H_
 #define __UMC_UMC_VC1_DEC_TASK_STORE_H_
@@ -173,28 +173,6 @@ namespace UMC
         VC1TaskStore & operator = (const VC1TaskStore &);
 
     public:
-
-        void* operator new(size_t size, void* p)
-        {
-            if (!p)
-                throw VC1Exceptions::vc1_exception(VC1Exceptions::mem_allocation_er);
-            return new(p) uint8_t[size];
-        };
-
-        // external memory management. No need to delete memory
-        void operator delete(void *p) THROWSEXCEPTION
-        {
-            //Anyway its incorrect when we trying free null pointer
-            if (!p)
-                throw VC1Exceptions::vc1_exception(VC1Exceptions::mem_allocation_er);
-        };
-
-        void operator delete(void *, void *) THROWSEXCEPTION
-        {
-            // delete for system exceptions case
-            throw VC1Exceptions::vc1_exception(VC1Exceptions::mem_allocation_er);
-        };
-
         virtual bool     Init(uint32_t iConsumerNumber,
                       uint32_t iMaxFramesInParallel,
                       VC1VideoDecoder* pVC1Decoder);
@@ -399,4 +377,4 @@ namespace UMC
 }
 
 #endif //__umc_umc_vc1_dec_task_store_H__
-#endif //UMC_ENABLE_VC1_VIDEO_DECODER
+#endif //MFX_ENABLE_VC1_VIDEO_DECODE

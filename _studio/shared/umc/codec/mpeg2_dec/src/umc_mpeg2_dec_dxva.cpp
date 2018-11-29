@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 #include "umc_defs.h"
-#if defined (UMC_ENABLE_MPEG2_VIDEO_DECODER)
+#if defined (MFX_ENABLE_MPEG2_VIDEO_DECODE)
 
 #include "umc_mpeg2_dec_hw.h"
 
@@ -144,8 +144,7 @@ PackVA::SaveVLDParameters(
         if (slice.slice_vertical_position == prevSlice.slice_vertical_position && slice.slice_horizontal_position == prevSlice.slice_horizontal_position)
         {
             // remove slice duplication
-            memmove_s(&pSliceInfoBuffer[i - 1], (pSliceInfo - &pSliceInfoBuffer[i]) * sizeof(VASliceParameterBufferMPEG2),
-                &pSliceInfoBuffer[i], (pSliceInfo - &pSliceInfoBuffer[i]) * sizeof(VASliceParameterBufferMPEG2));
+            std::copy(&pSliceInfoBuffer[i], pSliceInfo, &pSliceInfoBuffer[i-1]);
             numSlices--;
             pSliceInfo--;
             i--;
@@ -314,4 +313,4 @@ PackVA::SetBufferSize(
 }
 
 
-#endif // UMC_ENABLE_MPEG2_VIDEO_DECODER
+#endif // MFX_ENABLE_MPEG2_VIDEO_DECODE
