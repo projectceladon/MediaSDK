@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required( VERSION 2.8.5 )
+cmake_minimum_required( VERSION 3.6 )
 project( mediasdk )
 
 include(CMakeDependentOption)
@@ -88,7 +88,6 @@ include( ${BUILDER_ROOT}/FindMFX.cmake )
 include( ${BUILDER_ROOT}/FindPackages.cmake )
 include( ${BUILDER_ROOT}/FindInternals.cmake )
 include( ${BUILDER_ROOT}/FindITT.cmake )
-include( ${BUILDER_ROOT}/FindGTest.cmake )
 include( ${BUILDER_ROOT}/ConfTargets.cmake )
 
 # should prepend others to define target mfx
@@ -110,6 +109,20 @@ endif()
 
 if (BUILD_TESTS)
   enable_testing()
+
+
+  set (INSTALL_GTEST OFF)
+  add_subdirectory(${CMAKE_HOME_DIRECTORY}/googletest)
+
+  # For some Linux distro versions there is an unused-result warning
+  # generated inside the Gtest code at a call to fwrite. Since Gtest sets -Werror
+  # internally the only way to make it compile without modifying its source is to disable the
+  # unused-result warnings for Gtest/Gmock only.
+  target_compile_options (gtest PRIVATE "-Wno-unused-result")
+  target_compile_options (gmock PRIVATE "-Wno-unused-result")
+  target_compile_options (gtest_main PRIVATE "-Wno-unused-result")
+  target_compile_options (gmock_main PRIVATE "-Wno-unused-result")
+
   add_subdirectory(tests)
 endif()
 
@@ -174,4 +187,5 @@ message("  BUILD_DISPATCHER                        : ${BUILD_DISPATCHER}")
 message("  BUILD_SAMPLES                           : ${BUILD_SAMPLES}")
 message("  BUILD_TESTS                             : ${BUILD_TESTS}")
 message("  BUILD_TOOLS                             : ${BUILD_TOOLS}")
+message("  BUILD_KERNELS                           : ${BUILD_KERNELS}")
 message("*****************************************************************************")
