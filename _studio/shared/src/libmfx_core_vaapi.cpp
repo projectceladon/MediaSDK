@@ -255,6 +255,10 @@ typedef struct {
     { 0x3E94, MFX_HW_CFL, MFX_GT2 },
     { 0x3E96, MFX_HW_CFL, MFX_GT2 },
     { 0x3E9B, MFX_HW_CFL, MFX_GT2 },
+    { 0x3EA5, MFX_HW_CFL, MFX_GT3 },
+
+    /* WHL */
+    { 0x3EA0, MFX_HW_CFL, MFX_GT2 },
 
     /* CNL */
     { 0x5A51, MFX_HW_CNL, MFX_GT2 },
@@ -415,7 +419,7 @@ VAAPIVideoCORE::SetHandle(
         }
         return MFX_ERR_NONE;
     }
-    catch (MFX_CORE_CATCH_TYPE)
+    catch (...)
     {
         ReleaseHandle();
         return MFX_ERR_UNDEFINED_BEHAVIOR;
@@ -551,7 +555,7 @@ VAAPIVideoCORE::AllocFrames(
             }
         }
     }
-    catch(MFX_CORE_CATCH_TYPE)
+    catch(...)
     {
         return MFX_ERR_MEMORY_ALLOC;
     }
@@ -635,9 +639,12 @@ VAAPIVideoCORE::CreateVA(
         {
             profile |= VA_PROFILE_REXT;
         }
-        if ((param->mfx.FrameInfo.FourCC == MFX_FOURCC_P010) ||
-            (param->mfx.FrameInfo.FourCC == MFX_FOURCC_Y210) ||
-            (param->mfx.FrameInfo.FourCC == MFX_FOURCC_Y410) )
+        if (param->mfx.FrameInfo.FourCC == MFX_FOURCC_P010
+#if (MFX_VERSION >= 1027)
+            || param->mfx.FrameInfo.FourCC == MFX_FOURCC_Y210
+            || param->mfx.FrameInfo.FourCC == MFX_FOURCC_Y410
+#endif
+        )
         {
             profile |= VA_PROFILE_10;
         }
@@ -661,9 +668,11 @@ VAAPIVideoCORE::CreateVA(
         case MFX_FOURCC_AYUV:
             profile |= VA_PROFILE_444;
             break;
+#if (MFX_VERSION >= 1027)
         case MFX_FOURCC_Y410:
             profile |= VA_PROFILE_10 | VA_PROFILE_444;
             break;
+#endif
         }
         break;
     case MFX_CODEC_JPEG:
@@ -725,7 +734,6 @@ mfxStatus VAAPIVideoCORE::CreateVideoProcessing(mfxVideoParam * param)
         sts = m_vpp_hw_resmng.CreateDevice(this);
     }
 #else
-    param;
     sts = MFX_ERR_UNSUPPORTED;
 #endif
     return sts;
