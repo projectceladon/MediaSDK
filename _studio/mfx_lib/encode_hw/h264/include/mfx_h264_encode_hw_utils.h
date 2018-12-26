@@ -1,15 +1,15 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -1276,6 +1276,7 @@ namespace MfxHwH264Encode
         par.SceneChange  = (mfxU16) task->m_SceneChange;
         if (!par.PyramidLayer && (task->m_type[task->m_fid[0]] & MFX_FRAMETYPE_P) && task->m_LowDelayPyramidLayer)
             par.PyramidLayer = (mfxU16) task->m_LowDelayPyramidLayer;
+        par.CodedFrameSize = task->m_bsDataLength[0] + task->m_bsDataLength[1];
 #endif
     }
 
@@ -1448,8 +1449,8 @@ namespace MfxHwH264Encode
         mfxU16  m_skipped;
         mfxU8  m_QPMin[3]; // for I, P and B
         mfxU8  m_QPMax[3]; // for I, P and B
+        mfxU32 m_maxFrameSize;
 
-        bool        m_bControlMaxFrame;
         AVGBitrate* m_AvgBitrate;
 
         std::vector<LaFrameData>    m_laData;
@@ -1514,6 +1515,8 @@ namespace MfxHwH264Encode
         mfxU16  m_skipped;
         mfxU8   m_QPMin[3]; // for I, P and B
         mfxU8   m_QPMax[3]; // for I, P and B
+        mfxU32  m_maxFrameSize;
+
 
         AVGBitrate* m_AvgBitrate;
 
@@ -1751,6 +1754,7 @@ namespace MfxHwH264Encode
             , poc(mfxU32(-1))
             , pocL0(mfxU32(-1))
             , pocL1(mfxU32(-1))
+            , encOrder(0)
             , intraCost(0)
             , interCost(0)
             , propCost(0) { }
@@ -1818,7 +1822,7 @@ namespace MfxHwH264Encode
         mfxU32 m_queueFlush[STG_COUNT + 1];
     };
 
-    struct SVCPAKObject;
+    struct LAOutObject;
 
     using ns_asc::ASC;
 
@@ -1861,7 +1865,7 @@ namespace MfxHwH264Encode
             mfxU32              totalDist;
             mfxU32              numIntraMb;
             std::vector<MbData> mb;
-            //std::vector<SVCPAKObject> m_mb;
+            //std::vector<LAOutObject> m_mb;
         };
 
     public:
@@ -1953,7 +1957,8 @@ namespace MfxHwH264Encode
             DdiTask & newTask);
         void      AssignDecodeTimeStamp(
             DdiTask & task);
-
+        void PreserveTimeStamp(
+            mfxU64 timeStamp);
         mfxStatus UpdateBitstream(
             DdiTask & task,
             mfxU32    fid); // 0 - top/progressive, 1 - bottom
