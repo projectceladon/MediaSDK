@@ -1954,289 +1954,6 @@ JERRCODE CJPEGEncoder::WriteSOS(
 } // CJPEGEncoder::WriteSOS()
 
 
-JERRCODE CJPEGEncoder::SelectScanScripts(void)
-{
-  if(0 != m_scan_script)
-  {
-    delete[] m_scan_script;
-    m_scan_script = 0;
-  }
-
-  switch(m_jpeg_ncomp)
-  {
-  case 1:
-    //m_scan_count = 6;
-    //m_scan_script = new JPEG_SCAN [m_scan_count];
-
-    // 1 DC scan, def
-    m_scan_script[0].ncomp = 1;
-    m_scan_script[0].id[0] = 0;
-    m_scan_script[0].Ss    = 0;
-    m_scan_script[0].Se    = 0;
-    m_scan_script[0].Ah    = 0;
-    m_scan_script[0].Al    = 1;
-    // 2 AC scan, def(luma)
-    m_scan_script[1].ncomp = 1;
-    m_scan_script[1].id[0] = 0;
-    m_scan_script[1].Ss    = 1;
-    m_scan_script[1].Se    = 5;
-    m_scan_script[1].Ah    = 0;
-    m_scan_script[1].Al    = 2;
-    // 3 AC scan, def(luma)
-    m_scan_script[2].ncomp = 1;
-    m_scan_script[2].id[0] = 0;
-    m_scan_script[2].Ss    = 6;
-    m_scan_script[2].Se    = 63;
-    m_scan_script[2].Ah    = 0;
-    m_scan_script[2].Al    = 2;
-    // 4 AC scan, ref(luma)
-    m_scan_script[3].ncomp = 1;
-    m_scan_script[3].id[0] = 0;
-    m_scan_script[3].Ss    = 1;
-    m_scan_script[3].Se    = 63;
-    m_scan_script[3].Ah    = 2;
-    m_scan_script[3].Al    = 1;
-    // 5 DC scan, ref
-    m_scan_script[4].ncomp = 1;
-    m_scan_script[4].id[0] = 0;
-    m_scan_script[4].Ss    = 0;
-    m_scan_script[4].Se    = 0;
-    m_scan_script[4].Ah    = 1;
-    m_scan_script[4].Al    = 0;
-    // 6 AC scan, ref(luma)
-    m_scan_script[5].ncomp = 1;
-    m_scan_script[5].id[0] = 0;
-    m_scan_script[5].Ss    = 1;
-    m_scan_script[5].Se    = 63;
-    m_scan_script[5].Ah    = 1;
-    m_scan_script[5].Al    = 0;
-    break;
-
-  case 3:
-    //m_scan_count = 10;
-    //m_scan_script = new JPEG_SCAN [m_scan_count];
-
-    // 1 DC scan, def
-    m_scan_script[0].ncomp = 3;
-    m_scan_script[0].id[0] = 0;
-    m_scan_script[0].id[1] = 1;
-    m_scan_script[0].id[2] = 2;
-    m_scan_script[0].Ss    = 0;
-    m_scan_script[0].Se    = 0;
-    m_scan_script[0].Ah    = 0;
-    m_scan_script[0].Al    = 1;
-    // 2 AC scan, def(luma)
-    m_scan_script[1].ncomp = 1;
-    m_scan_script[1].id[0] = 0;
-    m_scan_script[1].Ss    = 1;
-    m_scan_script[1].Se    = 5;
-    m_scan_script[1].Ah    = 0;
-    m_scan_script[1].Al    = 2;
-    // 3 AC scan, def(cr)
-    m_scan_script[2].ncomp = 1;
-    m_scan_script[2].id[0] = 2;
-    m_scan_script[2].Ss    = 1;
-    m_scan_script[2].Se    = 63;
-    m_scan_script[2].Ah    = 0;
-    m_scan_script[2].Al    = 1;
-    // 4 AC scan, def(cb)
-    m_scan_script[3].ncomp = 1;
-    m_scan_script[3].id[0] = 1;
-    m_scan_script[3].Ss    = 1;
-    m_scan_script[3].Se    = 63;
-    m_scan_script[3].Ah    = 0;
-    m_scan_script[3].Al    = 1;
-    // 5 AC scan, def(luma)
-    m_scan_script[4].ncomp = 1;
-    m_scan_script[4].id[0] = 0;
-    m_scan_script[4].Ss    = 6;
-    m_scan_script[4].Se    = 63;
-    m_scan_script[4].Ah    = 0;
-    m_scan_script[4].Al    = 2;
-    // 7 AC scan, ref(luma)
-    m_scan_script[5].ncomp = 1;
-    m_scan_script[5].id[0] = 0;
-    m_scan_script[5].Ss    = 1;
-    m_scan_script[5].Se    = 63;
-    m_scan_script[5].Ah    = 2;
-    m_scan_script[5].Al    = 1;
-    // 6 DC scan, ref
-    m_scan_script[6].ncomp = 3;
-    m_scan_script[6].id[0] = 0;
-    m_scan_script[6].id[1] = 1;
-    m_scan_script[6].id[2] = 2;
-    m_scan_script[6].Ss    = 0;
-    m_scan_script[6].Se    = 0;
-    m_scan_script[6].Ah    = 1;
-    m_scan_script[6].Al    = 0;
-    // 8 AC scan, ref(cr)
-    m_scan_script[7].ncomp = 1;
-    m_scan_script[7].id[0] = 2;
-    m_scan_script[7].Ss    = 1;
-    m_scan_script[7].Se    = 63;
-    m_scan_script[7].Ah    = 1;
-    m_scan_script[7].Al    = 0;
-    // 9 AC scan, ref(cb)
-    m_scan_script[8].ncomp = 1;
-    m_scan_script[8].id[0] = 1;
-    m_scan_script[8].Ss    = 1;
-    m_scan_script[8].Se    = 63;
-    m_scan_script[8].Ah    = 1;
-    m_scan_script[8].Al    = 0;
-    // 10 AC scan, ref(luma)
-    m_scan_script[9].ncomp = 1;
-    m_scan_script[9].id[0] = 0;
-    m_scan_script[9].Ss    = 1;
-    m_scan_script[9].Se    = 63;
-    m_scan_script[9].Ah    = 1;
-    m_scan_script[9].Al    = 0;
-    break;
-
-  case 4:
-    //m_scan_count = 18;
-    //m_scan_script = new JPEG_SCAN [m_scan_count];
-
-    // 1 DC scan, def
-    m_scan_script[0].ncomp = 4;
-    m_scan_script[0].id[0] = 0;
-    m_scan_script[0].id[1] = 1;
-    m_scan_script[0].id[2] = 2;
-    m_scan_script[0].id[3] = 3;
-    m_scan_script[0].Ss    = 0;
-    m_scan_script[0].Se    = 0;
-    m_scan_script[0].Ah    = 0;
-    m_scan_script[0].Al    = 1;
-    // 2 AC scan, def(0)
-    m_scan_script[1].ncomp = 1;
-    m_scan_script[1].id[0] = 0;
-    m_scan_script[1].Ss    = 1;
-    m_scan_script[1].Se    = 5;
-    m_scan_script[1].Ah    = 0;
-    m_scan_script[1].Al    = 2;
-    // 3 AC scan, def(1)
-    m_scan_script[2].ncomp = 1;
-    m_scan_script[2].id[0] = 1;
-    m_scan_script[2].Ss    = 1;
-    m_scan_script[2].Se    = 5;
-    m_scan_script[2].Ah    = 0;
-    m_scan_script[2].Al    = 2;
-    // 4 AC scan, def(2)
-    m_scan_script[3].ncomp = 1;
-    m_scan_script[3].id[0] = 2;
-    m_scan_script[3].Ss    = 1;
-    m_scan_script[3].Se    = 5;
-    m_scan_script[3].Ah    = 0;
-    m_scan_script[3].Al    = 2;
-    // 5 AC scan, def(3)
-    m_scan_script[4].ncomp = 1;
-    m_scan_script[4].id[0] = 3;
-    m_scan_script[4].Ss    = 1;
-    m_scan_script[4].Se    = 5;
-    m_scan_script[4].Ah    = 0;
-    m_scan_script[4].Al    = 2;
-    // 6 AC scan, def(0)
-    m_scan_script[5].ncomp = 1;
-    m_scan_script[5].id[0] = 0;
-    m_scan_script[5].Ss    = 6;
-    m_scan_script[5].Se    = 63;
-    m_scan_script[5].Ah    = 0;
-    m_scan_script[5].Al    = 2;
-    // 7 AC scan, def(1)
-    m_scan_script[6].ncomp = 1;
-    m_scan_script[6].id[0] = 1;
-    m_scan_script[6].Ss    = 6;
-    m_scan_script[6].Se    = 63;
-    m_scan_script[6].Ah    = 0;
-    m_scan_script[6].Al    = 2;
-    // 8 AC scan, def(2)
-    m_scan_script[7].ncomp = 1;
-    m_scan_script[7].id[0] = 2;
-    m_scan_script[7].Ss    = 6;
-    m_scan_script[7].Se    = 63;
-    m_scan_script[7].Ah    = 0;
-    m_scan_script[7].Al    = 2;
-    // 9 AC scan, def(3)
-    m_scan_script[8].ncomp = 1;
-    m_scan_script[8].id[0] = 3;
-    m_scan_script[8].Ss    = 6;
-    m_scan_script[8].Se    = 63;
-    m_scan_script[8].Ah    = 0;
-    m_scan_script[8].Al    = 2;
-    // 10 AC scan, ref(0)
-    m_scan_script[9].ncomp = 1;
-    m_scan_script[9].id[0] = 0;
-    m_scan_script[9].Ss    = 1;
-    m_scan_script[9].Se    = 63;
-    m_scan_script[9].Ah    = 2;
-    m_scan_script[9].Al    = 1;
-    // 11 AC scan, ref(1)
-    m_scan_script[10].ncomp = 1;
-    m_scan_script[10].id[0] = 1;
-    m_scan_script[10].Ss    = 1;
-    m_scan_script[10].Se    = 63;
-    m_scan_script[10].Ah    = 2;
-    m_scan_script[10].Al    = 1;
-    // 12 AC scan, ref(2)
-    m_scan_script[11].ncomp = 1;
-    m_scan_script[11].id[0] = 2;
-    m_scan_script[11].Ss    = 1;
-    m_scan_script[11].Se    = 63;
-    m_scan_script[11].Ah    = 2;
-    m_scan_script[11].Al    = 1;
-    // 13 AC scan, ref(3)
-    m_scan_script[12].ncomp = 1;
-    m_scan_script[12].id[0] = 3;
-    m_scan_script[12].Ss    = 1;
-    m_scan_script[12].Se    = 63;
-    m_scan_script[12].Ah    = 2;
-    m_scan_script[12].Al    = 1;
-    // 14 DC scan, ref
-    m_scan_script[13].ncomp = 4;
-    m_scan_script[13].id[0] = 0;
-    m_scan_script[13].id[1] = 1;
-    m_scan_script[13].id[2] = 2;
-    m_scan_script[13].id[3] = 3;
-    m_scan_script[13].Ss    = 0;
-    m_scan_script[13].Se    = 0;
-    m_scan_script[13].Ah    = 1;
-    m_scan_script[13].Al    = 0;
-    // 15 AC scan, ref(0)
-    m_scan_script[14].ncomp = 1;
-    m_scan_script[14].id[0] = 0;
-    m_scan_script[14].Ss    = 1;
-    m_scan_script[14].Se    = 63;
-    m_scan_script[14].Ah    = 1;
-    m_scan_script[14].Al    = 0;
-    // 16 AC scan, ref(1)
-    m_scan_script[15].ncomp = 1;
-    m_scan_script[15].id[0] = 1;
-    m_scan_script[15].Ss    = 1;
-    m_scan_script[15].Se    = 63;
-    m_scan_script[15].Ah    = 1;
-    m_scan_script[15].Al    = 0;
-    // 17 AC scan, ref(2)
-    m_scan_script[16].ncomp = 1;
-    m_scan_script[16].id[0] = 2;
-    m_scan_script[16].Ss    = 1;
-    m_scan_script[16].Se    = 63;
-    m_scan_script[16].Ah    = 1;
-    m_scan_script[16].Al    = 0;
-    // 18 AC scan, ref(3)
-    m_scan_script[17].ncomp = 1;
-    m_scan_script[17].id[0] = 3;
-    m_scan_script[17].Ss    = 1;
-    m_scan_script[17].Se    = 63;
-    m_scan_script[17].Ah    = 1;
-    m_scan_script[17].Al    = 0;
-    break;
-
-  default:
-    return JPEG_NOT_IMPLEMENTED;
-  }
-
-  return JPEG_OK;
-} // CJPEGEncoder::SelectScanScripts()
-
 
 JERRCODE CJPEGEncoder::Init(void)
 {
@@ -2306,21 +2023,6 @@ JERRCODE CJPEGEncoder::Init(void)
       curr_comp->m_cc_step   = m_curr_scan.numxMCU * m_curr_scan.mcuWidth;
       break;
 
-    //case JPEG_EXTENDED:
-    //  curr_comp->m_cc_height = m_mcuHeight;
-    //  curr_comp->m_cc_step   = m_numxMCU * m_mcuWidth * ((m_jpeg_precision <= 8) ? sizeof(uint8_t) : sizeof(int16_t));
-    //  break;
-
-    //case JPEG_PROGRESSIVE:
-    //  curr_comp->m_cc_height = m_mcuHeight;
-    //  curr_comp->m_cc_step   = m_numxMCU * m_mcuWidth;
-    //  break;
-
-    //case JPEG_LOSSLESS:
-    //  curr_comp->m_cc_height = m_mcuHeight;
-    //  curr_comp->m_cc_step   = m_numxMCU * m_mcuWidth * sizeof(int16_t);
-    //  break;
-
     default:
       return JPEG_ERR_PARAMS;
     }
@@ -2338,18 +2040,12 @@ JERRCODE CJPEGEncoder::Init(void)
     if(JPEG_OK != jerr)
       return jerr;
 
-    if(JPEG_LOSSLESS == m_jpeg_mode)
-    {
-      curr_comp->m_row1.Allocate(curr_comp->m_cc_step);
-      curr_comp->m_row2.Allocate(curr_comp->m_cc_step);
-      curr_comp->m_curr_row = (int16_t*)curr_comp->m_row1.m_buffer;
-      curr_comp->m_prev_row = (int16_t*)curr_comp->m_row2.m_buffer;
-    }
   } // for m_jpeg_ncomp
 
   if(JPEG_PROGRESSIVE == m_jpeg_mode)
   {
-    SelectScanScripts();
+    LOG0("Error: JPEG_PROGRESSIVE is not supported in CJPEGEncoder::Init()");
+    return JPEG_NOT_IMPLEMENTED;
   }
 
   if(m_num_scans != 1)
@@ -2363,24 +2059,6 @@ JERRCODE CJPEGEncoder::Init(void)
     else
       tr_buf_size = m_curr_scan.numxMCU * m_curr_scan.numyMCU * m_nblock * DCTSIZE2 * sizeof(int16_t) * m_num_threads;
     break;
-
-  //case JPEG_EXTENDED:
-  //  if(!m_optimal_htbl)
-  //    tr_buf_size = m_numxMCU * m_nblock * DCTSIZE2 * sizeof(int16_t) * m_num_threads;
-  //  else
-  //    tr_buf_size = m_numxMCU * m_numyMCU * m_nblock * DCTSIZE2 * sizeof(int16_t) * m_num_threads;
-  //  break;
-
-  //case JPEG_PROGRESSIVE:
-  //  tr_buf_size = m_numxMCU * m_numyMCU * m_nblock * DCTSIZE2 * sizeof(int16_t) * m_num_threads;
-  //  break;
-
-  //case JPEG_LOSSLESS:
-  //  if(!m_optimal_htbl)
-  //    tr_buf_size = m_numxMCU * m_nblock * sizeof(int16_t) * m_num_threads;
-  //  else
-  //    tr_buf_size = m_numxMCU * m_numyMCU * m_nblock * sizeof(int16_t) * m_num_threads;
-  //  break;
 
   default:
     return JPEG_ERR_PARAMS;
@@ -2602,11 +2280,21 @@ JERRCODE CJPEGEncoder::ColorConvert(uint32_t rowMCU, uint32_t colMCU, uint32_t m
     int    dstStep;
     uint8_t* pDst8u;
 
+    if(m_src.precision > 8)
+    {
+      return JPEG_ERR_INTERNAL;
+    }
+
     dstStep = m_ccomp[0].m_cc_step;
     convert = 1;
 
     pDst8u = m_ccomp[0].GetCCBufferPtr(0/*thread_id*/);
 
+    if(!pSrc8u)
+    {
+      LOG0("Error: empty pSrc8u in CJPEGEncoder::ColorConvert()");
+      return JPEG_ERR_INTERNAL;
+    }
     status = mfxiRGBToY_JPEG_8u_C3C1R(pSrc8u,srcStep,pDst8u,dstStep,roi);
     if(ippStsNoErr != status)
     {
@@ -2733,6 +2421,10 @@ JERRCODE CJPEGEncoder::ColorConvert(uint32_t rowMCU, uint32_t colMCU, uint32_t m
 
     if(JD_PIXEL == m_src.order)
     {
+      if(m_src.precision > 8)
+      {
+        return JPEG_ERR_INTERNAL;
+      }
       status = mfxiRGBToYCbCr_JPEG_8u_C3P3R(pSrc8u,srcStep,pDst8u,dstStep,roi);
     }
     else
@@ -2759,6 +2451,11 @@ JERRCODE CJPEGEncoder::ColorConvert(uint32_t rowMCU, uint32_t colMCU, uint32_t m
     int    dstStep;
     uint8_t* pDst8u[3];
 
+    if(m_src.precision > 8)
+    {
+      return JPEG_ERR_INTERNAL;
+    }
+
     dstStep = m_ccomp[0].m_cc_step;
     convert = 1;
 
@@ -2780,6 +2477,11 @@ JERRCODE CJPEGEncoder::ColorConvert(uint32_t rowMCU, uint32_t colMCU, uint32_t m
   {
     int    dstStep;
     uint8_t* pDst8u[3];
+
+    if(m_src.precision > 8)
+    {
+      return JPEG_ERR_INTERNAL;
+    }
 
     dstStep = m_ccomp[0].m_cc_step;
     convert = 1;
@@ -2803,6 +2505,11 @@ JERRCODE CJPEGEncoder::ColorConvert(uint32_t rowMCU, uint32_t colMCU, uint32_t m
   {
     int    dstStep[3];
     uint8_t* pDst8u[3];
+
+    if(m_src.precision > 8)
+    {
+      return JPEG_ERR_INTERNAL;
+    }
 
     convert = 1;
 
@@ -2829,6 +2536,11 @@ JERRCODE CJPEGEncoder::ColorConvert(uint32_t rowMCU, uint32_t colMCU, uint32_t m
     int    dstStep;
     uint8_t* pDst8u[4];
 
+    if(m_src.precision > 8)
+    {
+      return JPEG_ERR_INTERNAL;
+    }
+
     dstStep = m_ccomp[0].m_cc_step;
     convert = 1;
 
@@ -2851,6 +2563,11 @@ JERRCODE CJPEGEncoder::ColorConvert(uint32_t rowMCU, uint32_t colMCU, uint32_t m
   {
     int    dstStep;
     uint8_t* pDst8u[4];
+
+    if(m_src.precision > 8)
+    {
+      return JPEG_ERR_INTERNAL;
+    }
 
     dstStep = m_ccomp[0].m_cc_step;
     convert = 1;
@@ -3079,20 +2796,6 @@ JERRCODE CJPEGEncoder::ProcessBuffer(uint32_t rowMCU, uint32_t colMCU, uint32_t 
     else
     {
       return JPEG_NOT_IMPLEMENTED;
-      /*pSrc16u    = (uint16_t*)((uint8_t*)m_src.p.Data16s[c] + rowMCU * curr_comp->m_ss_height * srcStep) + 8 * colMCU * curr_comp->m_hsampling;
-      copyHeight = curr_comp->m_ss_height;
-
-      if(rowMCU == (uint32_t)m_numyMCU - 1)
-      {
-        yPadd       = m_yPadding;
-        copyHeight -= m_yPadding;
-      }
-
-      roi.width  = (maxMCU - colMCU) * 8 * curr_comp->m_hsampling;
-      roi.height = copyHeight;
-
-      pDst16u = (uint16_t*)curr_comp->GetSSBufferPtr(0);//thread_id);
-      status = mfxiCopy_16s_C1R((int16_t*)pSrc16u,srcStep,(int16_t*)pDst16u,curr_comp->m_ss_step,roi);*/
     }
 
     if(ippStsNoErr != status)
@@ -3106,39 +2809,25 @@ JERRCODE CJPEGEncoder::ProcessBuffer(uint32_t rowMCU, uint32_t colMCU, uint32_t 
     {
       for(i = 0; i < curr_comp->m_ss_height; i++)
       {
-        if(m_src.precision <= 8)
+        int width;
+
+        if(curr_comp->m_h_factor == 1)
         {
-          int width;
-
-          if(curr_comp->m_h_factor == 1)
-          {
-            width = (maxMCU - colMCU) * m_curr_scan.mcuWidth / curr_comp->m_h_factor;//8 * curr_comp->m_hsampling;
-            xPadd = m_curr_scan.xPadding;
-          }
-          else
-          {
-            width = ((maxMCU - colMCU) * m_curr_scan.mcuWidth / curr_comp->m_h_factor);//8 * curr_comp->m_hsampling;
-            xPadd = (m_curr_scan.xPadding + 1) / 2;
-          }
-
-          p     = curr_comp->GetSSBufferPtr(0/*thread_id*/) + i*curr_comp->m_ss_step;
-          val   = p[width - xPadd - 1];
-
-          for(j = 0; j < xPadd; j++)
-          {
-            p[width - xPadd + j] = val;
-          }
+          width = (maxMCU - colMCU) * m_curr_scan.mcuWidth / curr_comp->m_h_factor;//8 * curr_comp->m_hsampling;
+          xPadd = m_curr_scan.xPadding;
         }
-        else // 16 bit only 444 sampling
+        else
         {
-          uint16_t* p16;
-          uint16_t  v16;
-          p16 = (uint16_t*)(curr_comp->GetSSBufferPtr(0/*thread_id*/) + i * curr_comp->m_ss_step);
-          v16 = p16[(maxMCU - colMCU) * m_curr_scan.mcuWidth / curr_comp->m_h_factor - 1];//8 * curr_comp->m_hsampling;
-          for(j = 0; j < m_curr_scan.xPadding; j++)
-          {
-            p16[(maxMCU - colMCU) * m_curr_scan.mcuWidth / curr_comp->m_h_factor + j] = v16;//8 * curr_comp->m_hsampling;
-          }
+          width = ((maxMCU - colMCU) * m_curr_scan.mcuWidth / curr_comp->m_h_factor);//8 * curr_comp->m_hsampling;
+          xPadd = (m_curr_scan.xPadding + 1) / 2;
+        }
+
+        p     = curr_comp->GetSSBufferPtr(0/*thread_id*/) + i*curr_comp->m_ss_step;
+        val   = p[width - xPadd - 1];
+
+        for(j = 0; j < xPadd; j++)
+        {
+          p[width - xPadd + j] = val;
         }
       }
     }
@@ -4832,70 +4521,10 @@ JERRCODE CJPEGEncoder::WriteHeader(void)
         }
         break;
 
-      case JPEG_EXTENDED:
-        if(!m_optimal_htbl)
-        {
-          jerr = WriteDHT(&m_dctbl[0]);
-          if(JPEG_OK != jerr)
-          {
-            LOG0("Error: WriteDHT() failed");
-            return jerr;
-          }
-
-          jerr = WriteDHT(&m_actbl[0]);
-          if(JPEG_OK != jerr)
-          {
-            LOG0("Error: WriteDHT() failed");
-            return jerr;
-          }
-
-          if(m_jpeg_ncomp != 1 && (m_jpeg_color == JC_YCBCR || m_jpeg_color == JC_YCCK || m_jpeg_color == JC_NV12))
-          {
-            jerr = WriteDHT(&m_dctbl[1]);
-            if(JPEG_OK != jerr)
-            {
-              LOG0("Error: WriteDHT() failed");
-              return jerr;
-            }
-
-            jerr = WriteDHT(&m_actbl[1]);
-            if(JPEG_OK != jerr)
-            {
-              LOG0("Error: WriteDHT() failed");
-              return jerr;
-            }
-          }
-        }
-        else
-        {
-          GenerateHuffmanTablesEX();
-        }
-        break;
-
       case JPEG_PROGRESSIVE:
         // always generated tables
         break;
 
-      case JPEG_LOSSLESS:
-        if(!m_optimal_htbl)
-        {
-          jerr = WriteDHT(&m_dctbl[0]);
-          if(JPEG_OK != jerr)
-          {
-            LOG0("Error: WriteDHT() failed");
-            return jerr;
-          }
-        }
-        else
-        {
-          jerr = GenerateHuffmanTables();
-          if(JPEG_OK != jerr)
-          {
-            LOG0("Error: GenerateHuffmanTables() failed");
-            return jerr;
-          }
-        }
-        break;
       default:
         break;
       }

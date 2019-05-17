@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -37,15 +37,6 @@
 #include <map>
 #include <algorithm>
 
-#define MFX_DESTROY_VABUFFER(vaBufferId, vaDisplay)    \
-do {                                               \
-    if ( vaBufferId != VA_INVALID_ID)              \
-    {                                              \
-        vaDestroyBuffer(vaDisplay, vaBufferId);    \
-        vaBufferId = VA_INVALID_ID;                \
-    }                                              \
-} while (0)
-
 namespace MfxHwH265Encode
 {
 
@@ -83,6 +74,7 @@ public:
 
         , VABID_ROI
         , VABID_RIR
+        , VABID_MaxSliceSize
 
         , VABID_END_OF_LIST // Remain this item last in the list
     };
@@ -144,6 +136,12 @@ mfxStatus SetFrameRate(
     VADisplay    vaDisplay,
     VAContextID  vaContextEncode,
     VABufferID & frameRateBuf_id);
+
+mfxStatus SetMaxSliceSize(
+    MfxHwH265Encode::MfxVideoParam const & par,
+    VADisplay    vaDisplay,
+    VAContextID  vaContextEncode,
+    VABufferID & maxSliceSizeBuf_id);
 
 mfxStatus SetSkipFrame(
     VADisplay    vaDisplay,

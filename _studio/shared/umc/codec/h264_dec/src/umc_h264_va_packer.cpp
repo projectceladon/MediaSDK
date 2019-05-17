@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 Intel Corporation
+// Copyright (c) 2017-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,11 +24,16 @@
 #include "umc_h264_va_packer.h"
 #include "umc_h264_task_supplier.h"
 
+#ifdef MFX_ENABLE_CPLIB
+#include "mfx_cenc.h"
+#endif
 
 #include "umc_va_linux.h"
+#include "umc_va_linux_protected.h"
 #include "umc_va_video_processing.h"
 #include "umc_va_fei.h"
 
+#include "mfx_common_int.h"
 #include "mfx_ext_buffers.h"
 
 #include "mfxfei.h"
@@ -75,6 +80,11 @@ Status Packer::QueryStreamOut(H264DecoderFrame* /*pFrame*/)
 Packer * Packer::CreatePacker(VideoAccelerator * va, TaskSupplier* supplier)
 {
     Packer * packer = 0;
+#ifdef MFX_ENABLE_CPLIB
+    if (va->GetProtectedVA() && IS_PROTECTION_CENC(va->GetProtectedVA()->GetProtected()))
+        packer = new PackerVA_CENC(va, supplier);
+    else
+#endif
         packer = new PackerVA(va, supplier);
 
     return packer;
@@ -426,8 +436,7 @@ void PackerVA::CreateSliceDataBuffer(H264DecoderFrameInfo * pSliceInfo)
         size += NalUnitSize;
     }
 
-    uint32_t const AlignedNalUnitSize
-        = align_value<uint32_t>(size, 128);
+    uint32_t const AlignedNalUnitSize = mfx::align2_value(size, 128);
 
     UMCVACompBuffer* compBuf;
     m_va->GetCompBuffer(VASliceDataBufferType, &compBuf, AlignedNalUnitSize);
@@ -826,8 +835,8 @@ Status PackerVA::QueryStreamOut(H264DecoderFrame* pFrame)
     VM_ASSERT(dynamic_cast<FEIVideoAccelerator*>(m_va) &&
               "VA should be [FEIVideoAccelerator] if [streamout] is enabled");
 
-    FEIVideoAccelerator* fei_va =
-        static_cast<FEIVideoAccelerator*>(m_va);
+    if (!pFrame)
+        return UMC_ERR_FAILED;
 
     FrameData const* fd = pFrame->GetFrameData();
     VM_ASSERT(fd);
@@ -838,19 +847,19 @@ Status PackerVA::QueryStreamOut(H264DecoderFrame* pFrame)
 
     VM_ASSERT(aux->type == MFX_EXTBUFF_FEI_DEC_STREAM_OUT);
 
-    mfxExtFeiDecStreamOut* so =
-        reinterpret_cast<mfxExtFeiDecStreamOut*>(aux->ptr);
-    if (!so)
+    mfxExtFeiDecStreamOut* so = reinterpret_cast<mfxExtFeiDecStreamOut*>(aux->ptr);
+
+    if (!so || !so->MB)
         return UMC_ERR_FAILED;
 
-    VM_ASSERT(!( pFrame->GetTotalMBs() < 0));
+    VM_ASSERT(pFrame->GetTotalMBs() >= 0);
     uint32_t const count = pFrame->GetTotalMBs();
 
     if (so->NumMBAlloc < count)
         return UMC_ERR_FAILED;
 
-    uint32_t const size =
-        count * sizeof(mfxFeiDecStreamOutMBCtrl);
+    FEIVideoAccelerator* fei_va =
+        static_cast<FEIVideoAccelerator*>(m_va);
 
     //top field
     int32_t const top = pFrame->GetNumberByParity(0);
@@ -858,17 +867,12 @@ Status PackerVA::QueryStreamOut(H264DecoderFrame* pFrame)
     if (!buffer || !buffer->GetPtr())
         return UMC_ERR_FAILED;
 
-    char* dst = reinterpret_cast<char*>(so->MB);
-    if (!dst)
-        return UMC_ERR_FAILED;
+    mfxFeiDecStreamOutMBCtrl* src = reinterpret_cast<mfxFeiDecStreamOutMBCtrl *>(buffer->GetPtr());
 
-    mfxU8 const* src = reinterpret_cast<mfxU8 *>(buffer->GetPtr());
-    VM_ASSERT(src);
-
-    int32_t const offset1 =  size * top;
+    int32_t const offset1 =  count * top;
     {
         MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_HOTSPOTS, "std::copy");
-        std::copy(src, src + size, dst + offset1);
+        std::copy(src, src + count, so->MB + offset1);
     }
 
     fei_va->ReleaseBuffer(buffer);
@@ -881,17 +885,167 @@ Status PackerVA::QueryStreamOut(H264DecoderFrame* pFrame)
     if (!buffer || !buffer->GetPtr())
         return UMC_ERR_FAILED;
 
-    src = reinterpret_cast<mfxU8 *>(buffer->GetPtr());
-    VM_ASSERT(src);
+    src = reinterpret_cast<mfxFeiDecStreamOutMBCtrl *>(buffer->GetPtr());
 
-    int32_t const offset2 =  size * bottom;
-    std::copy(src, src + size, dst + offset2);
-
+    int32_t const offset2 =  count * bottom;
+    {
+        MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_HOTSPOTS, "std::copy");
+        std::copy(src, src + count, so->MB + offset2);
+    }
     fei_va->ReleaseBuffer(buffer);
 
     return UMC_OK;
 }
 
+#ifdef MFX_ENABLE_CPLIB
+
+PackerVA_CENC::PackerVA_CENC(VideoAccelerator * va, TaskSupplier * supplier)
+    : PackerVA(va, supplier)
+{
+}
+
+void PackerVA_CENC::PackPicParams(H264DecoderFrameInfo * pSliceInfo, H264Slice * pSlice)
+{
+    const UMC_H264_DECODER::H264SliceHeader* pSliceHeader = pSlice->GetSliceHeader();
+    const H264DecoderFrame *pCurrentFrame = pSliceInfo->m_pFrame;
+
+    UMCVACompBuffer *picParamBuf;
+    VAPictureParameterBufferH264* pPicParams_H264 = (VAPictureParameterBufferH264*)m_va->GetCompBuffer(VAPictureParameterBufferType, &picParamBuf, sizeof(VAPictureParameterBufferH264));
+    if (!pPicParams_H264)
+        throw h264_exception(UMC_ERR_FAILED);
+
+    memset(pPicParams_H264, 0, sizeof(VAPictureParameterBufferH264));
+
+    int32_t reference = pCurrentFrame->isShortTermRef() ? 1 : (pCurrentFrame->isLongTermRef() ? 2 : 0);
+
+    FillFrame(&(pPicParams_H264->CurrPic), pCurrentFrame, pSliceHeader->bottom_field_flag, reference, 0);
+
+    pPicParams_H264->CurrPic.flags = 0;
+
+    if (reference == 1)
+        pPicParams_H264->CurrPic.flags |= VA_PICTURE_H264_SHORT_TERM_REFERENCE;
+
+    if (reference == 2)
+        pPicParams_H264->CurrPic.flags |= VA_PICTURE_H264_LONG_TERM_REFERENCE;
+
+    if (pSliceHeader->field_pic_flag)
+    {
+        if (pSliceHeader->bottom_field_flag)
+        {
+            pPicParams_H264->CurrPic.flags |= VA_PICTURE_H264_BOTTOM_FIELD;
+            pPicParams_H264->CurrPic.TopFieldOrderCnt = 0;
+        }
+        else
+        {
+            pPicParams_H264->CurrPic.flags |= VA_PICTURE_H264_TOP_FIELD;
+            pPicParams_H264->CurrPic.BottomFieldOrderCnt = 0;
+        }
+    }
+
+    //create reference picture list
+    for (int32_t i = 0; i < 16; i++)
+    {
+        FillFrameAsInvalid(&(pPicParams_H264->ReferenceFrames[i]));
+    }
+
+    int32_t referenceCount = 0;
+    int32_t j = 0;
+
+    int32_t viewCount = m_supplier->GetViewCount();
+
+    for (int32_t i = 0; i < viewCount; i++)
+    {
+        ViewItem & view = m_supplier->GetViewByNumber(i);
+        H264DBPList * pDPBList = view.GetDPBList(0);
+        int32_t dpbSize = pDPBList->GetDPBSize();
+
+        int32_t start = j;
+
+        for (H264DecoderFrame * pFrm = pDPBList->head(); pFrm && (j < dpbSize + start); pFrm = pFrm->future())
+        {
+            if (j >= 16)
+            {
+                VM_ASSERT(false);
+                throw h264_exception(UMC_ERR_FAILED);
+            }
+            VM_ASSERT(j < dpbSize + start);
+
+            int32_t defaultIndex = 0;
+
+            if ((0 == pCurrentFrame->m_index) && !pFrm->IsFrameExist())
+            {
+                defaultIndex = 1;
+            }
+
+            int32_t reference = pFrm->isShortTermRef() ? 1 : (pFrm->isLongTermRef() ? 2 : 0);
+            if (!reference && pCurrentFrame != pFrm && (pFrm->isInterViewRef(0) || pFrm->isInterViewRef(1)) &&
+                (pFrm->PicOrderCnt(0, 3) == pCurrentFrame->PicOrderCnt(0, 3)) && pFrm->m_viewId < pCurrentFrame->m_viewId)
+            { // interview reference
+                reference = 1;
+            }
+
+            if (!reference)
+            {
+                continue;
+            }
+
+            reference = pFrm->isShortTermRef() ? 1 : (pFrm->isLongTermRef() ? 2 : 0);
+            referenceCount ++;
+            int32_t field = pFrm->m_bottom_field_flag[0];
+            FillFrame(&(pPicParams_H264->ReferenceFrames[j]), pFrm,
+                field, reference, defaultIndex);
+
+            reference = pFrm->isShortTermRef() ? 1 : (pFrm->isLongTermRef() ? 2 : 0);
+
+            if ((pFrm == pCurrentFrame) && ((&pCurrentFrame->m_pSlicesInfo) != pSliceInfo))
+            {
+                FillFrame(&(pPicParams_H264->ReferenceFrames[j]), pFrm, 0, reference, defaultIndex);
+            }
+
+            j++;
+        }
+    }
+
+    picParamBuf->SetDataSize(sizeof(VAPictureParameterBufferH264));
+
+    mfxBitstream *bs = m_va->GetProtectedVA()->GetBitstream();
+    if (!bs)
+        throw h264_exception(UMC_ERR_FAILED);
+
+    auto decryptParam = reinterpret_cast<mfxExtCencParam*>(GetExtendedBuffer(bs->ExtParam, bs->NumExtParam, MFX_EXTBUFF_CENC_PARAM));
+    if (!decryptParam)
+        throw h264_exception(UMC_ERR_FAILED);
+
+    UMCVACompBuffer *pParamBuf;
+    VACencStatusParameters* pCENCStatusParams = (VACencStatusParameters*)m_va->GetCompBuffer(VACencStatusParameterBufferType, &pParamBuf, sizeof(VACencStatusParameters));
+    if (!pCENCStatusParams)
+        throw h264_exception(UMC_ERR_FAILED);
+
+    pCENCStatusParams->status_report_index_feedback = decryptParam->StatusReportIndex;
+
+    pParamBuf->SetDataSize(sizeof(VACencStatusParameters));
+}
+
+void PackerVA_CENC::PackAU(const H264DecoderFrame *pFrame, int32_t isTop)
+{
+    H264DecoderFrameInfo* sliceInfo =
+        const_cast<H264DecoderFrameInfo *>(pFrame->GetAU(isTop));
+
+    uint32_t const count_all = sliceInfo->GetSliceCount();
+    if (!m_va || !count_all)
+        return;
+
+    uint32_t first_slice = 0;
+    H264Slice* slice = sliceInfo->GetSlice(first_slice);
+
+    PackPicParams(sliceInfo, slice);
+
+    Status sts = m_va->Execute();
+    if (sts != UMC_OK)
+        throw h264_exception(sts);
+}
+
+#endif
 
 } // namespace UMC
 

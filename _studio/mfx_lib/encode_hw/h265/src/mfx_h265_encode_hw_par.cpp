@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1905,10 +1905,8 @@ mfxStatus CheckVideoParam(MfxVideoParam& par, ENCODE_CAPS_HEVC const & caps, boo
         , (mfxU32)MFX_RATECONTROL_AVBR
         , (mfxU32)MFX_RATECONTROL_CQP
         , (mfxU32)MFX_RATECONTROL_LA_EXT
-#ifndef MFX_VA_LINUX
         , (mfxU32)MFX_RATECONTROL_ICQ
         , caps.VCMBitRateControl ? MFX_RATECONTROL_VCM : 0
-#endif
         , caps.QVBRBRCSupport ? MFX_RATECONTROL_QVBR : 0
         );
 
@@ -2032,8 +2030,11 @@ mfxStatus CheckVideoParam(MfxVideoParam& par, ENCODE_CAPS_HEVC const & caps, boo
     changed += CheckMax(par.mfx.NumRefFrame, maxDPB - 1);
 
     if (par.mfx.NumRefFrame)
-        maxDPB = par.mfx.NumRefFrame + 1;
-
+    {
+        // If NumActiveRef parameters are set already, DPB size should not be less than NumActiveRef+1
+        maxDPB = std::max({ par.mfx.NumRefFrame + 1, par.m_ext.DDI.NumActiveRefP + 1,
+            par.m_ext.DDI.NumActiveRefBL0 + par.m_ext.DDI.NumActiveRefBL1 + 1 });
+    }
 
     if (   (par.mfx.RateControlMethod == MFX_RATECONTROL_VBR
          || par.mfx.RateControlMethod == MFX_RATECONTROL_QVBR
@@ -2416,14 +2417,13 @@ mfxStatus CheckVideoParam(MfxVideoParam& par, ENCODE_CAPS_HEVC const & caps, boo
             , (mfxU16)(MFX_SAO_ENABLE_LUMA | MFX_SAO_ENABLE_CHROMA)
         );
         //On Gen10+ VDEnc SAO for only Luma/Chroma in CQP mode isn't supported by driver until real customer usage
-        //For TU 1 and TU 4 SAO isn't supported due to HuC restrictions, for TU 7 SAO isn't supported at all
-        if (par.m_platform >= MFX_HW_CNL &&
+        if (par.m_platform == MFX_HW_CNL &&
             par.mfx.RateControlMethod == MFX_RATECONTROL_CQP &&
             par.mfx.LowPower == MFX_CODINGOPTION_ON &&
             (par.m_ext.HEVCParam.SampleAdaptiveOffset == (mfxU16)MFX_SAO_ENABLE_LUMA || par.m_ext.HEVCParam.SampleAdaptiveOffset == (mfxU16)MFX_SAO_ENABLE_CHROMA))
         {
             par.m_ext.HEVCParam.SampleAdaptiveOffset = (mfxU16)MFX_SAO_DISABLE;
-            changed++;
+            invalid++;
         }
     }
     else
@@ -2668,9 +2668,6 @@ void SetDefaults(
         if (!par.BufferSizeInKB)
             par.BufferSizeInKB = Min(maxBuf, mfxU32(rawBits / 8000));
 
-        if (par.m_ext.CO2.MBBRC == MFX_CODINGOPTION_UNKNOWN)
-            par.m_ext.CO2.MBBRC = MFX_CODINGOPTION_OFF;
-
     }
     else if (   par.mfx.RateControlMethod == MFX_RATECONTROL_ICQ)
     {
@@ -2702,8 +2699,6 @@ void SetDefaults(
         }
         if (!par.InitialDelayInKB)
             par.InitialDelayInKB = par.BufferSizeInKB / 2;
-        if (par.m_ext.CO2.MBBRC == MFX_CODINGOPTION_UNKNOWN)
-            par.m_ext.CO2.MBBRC = (mfxU16)(par.isSWBRC()? MFX_CODINGOPTION_OFF: MFX_CODINGOPTION_ON);
     }
     else if(par.mfx.RateControlMethod == MFX_RATECONTROL_AVBR)
     {
@@ -2745,6 +2740,10 @@ void SetDefaults(
 
     if (CO3.LowDelayBRC == MFX_CODINGOPTION_UNKNOWN)
         CO3.LowDelayBRC = MFX_CODINGOPTION_OFF;
+
+    if (par.m_ext.CO2.MBBRC == MFX_CODINGOPTION_UNKNOWN &&
+        (par.mfx.RateControlMethod == MFX_RATECONTROL_CQP || par.isSWBRC() || IsOn(par.mfx.LowPower)))
+        par.m_ext.CO2.MBBRC = MFX_CODINGOPTION_OFF; // disable MBBRC for those cases. For other cases, MBBRC can be on or off at the driver's discretion.
 
     if (CO3.LowDelayBRC == MFX_CODINGOPTION_ON && !CO2.MaxFrameSize && par.mfx.FrameInfo.FrameRateExtN && par.mfx.FrameInfo.FrameRateExtD) {
 
@@ -2907,7 +2906,7 @@ void SetDefaults(
             mfxI16 QPX = (par.mfx.GopRefDist == 1) ? par.mfx.QPP : par.mfx.QPB;
 
             for (mfxI16 i = 0; i < 8; i++)
-                CO3.QPOffset[i] = Clip3<mfxI16>((mfxI16)minQP - QPX, (mfxI16)maxQP - QPX, i + (par.mfx.GopRefDist > 1));
+                CO3.QPOffset[i] = mfx::clamp<mfxI16>(i + (par.mfx.GopRefDist > 1), (mfxI16)minQP - QPX, (mfxI16)maxQP - QPX);
         }
         else
             CO3.EnableQPOffset = MFX_CODINGOPTION_OFF;
@@ -2937,7 +2936,7 @@ void SetDefaults(
 
 #if (MFX_VERSION >= 1026)
     if (!CO3.TransformSkip)
-        CO3.TransformSkip = MFX_CODINGOPTION_OFF;
+        CO3.TransformSkip = (mfxU16)((par.m_platform < MFX_HW_ICL) ? MFX_CODINGOPTION_OFF : MFX_CODINGOPTION_ON);
 
     if (!par.m_ext.HEVCParam.SampleAdaptiveOffset)
         par.m_ext.HEVCParam.SampleAdaptiveOffset = isSAOSupported(par) ? (MFX_SAO_ENABLE_LUMA | MFX_SAO_ENABLE_CHROMA) : MFX_SAO_DISABLE;

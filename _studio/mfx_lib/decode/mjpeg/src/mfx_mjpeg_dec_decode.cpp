@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -59,6 +59,17 @@ struct ThreadTaskInfo
     bool              needCheckVppStatus;
     mfxU32            numDecodeTasksToCheck;
 };
+
+static void SetFrameType(mfxFrameSurface1 &surface_out)
+{
+    auto extFrameInfo = reinterpret_cast<mfxExtDecodedFrameInfo *>(GetExtendedBuffer(surface_out.Data.ExtParam, surface_out.Data.NumExtParam, MFX_EXTBUFF_DECODED_FRAME_INFO));
+    if (extFrameInfo == nullptr)
+        return;
+
+    // terms I/P/B frames not applicable for JPEG,
+    // so all frames marked as I
+    extFrameInfo->FrameType = MFX_FRAMETYPE_I;
+}
 
 class MFX_JPEG_Utility
 {
@@ -558,8 +569,8 @@ mfxStatus VideoDECODEMJPEG::QueryIOSurfInternal(VideoCORE *core, mfxVideoParam *
         std::swap(request->Info.CropY, request->Info.CropX);
     }
 
-    request->Info.Width = UMC::align_value<mfxU16>(request->Info.Width, 0x10);
-    request->Info.Height = UMC::align_value<mfxU16>(request->Info.Height,
+    request->Info.Width  = mfx::align2_value(request->Info.Width, 0x10);
+    request->Info.Height = mfx::align2_value(request->Info.Height,
         (request->Info.PicStruct == MFX_PICSTRUCT_PROGRESSIVE) ? 0x10 : 0x20);
 
     if (MFX_PLATFORM_SOFTWARE == platform)
@@ -568,11 +579,6 @@ mfxStatus VideoDECODEMJPEG::QueryIOSurfInternal(VideoCORE *core, mfxVideoParam *
     }
     else
     {
-    // large pictures are not supported on Linux so far
-    if ((request->Info.Width > 8192) || (request->Info.Height > 8192)) {
-        return MFX_ERR_UNSUPPORTED;
-    }
-
         eMFXHWType type = MFX_HW_UNKNOWN;
         if (platform == MFX_PLATFORM_HARDWARE)
         {
@@ -649,6 +655,8 @@ mfxStatus VideoDECODEMJPEG::DecodeFrameCheck(mfxBitstream *bs, mfxFrameSurface1 
 
         if (!(*surface_out))
             return MFX_ERR_UNDEFINED_BEHAVIOR;
+
+        SetFrameType(**surface_out);
 
         (*surface_out)->Info.FrameId.ViewId = 0; // (mfxU16)pFrame->m_viewId;
 
@@ -1002,7 +1010,8 @@ bool MFX_JPEG_Utility::IsNeedPartialAcceleration(VideoCORE * core, mfxVideoParam
 
 #if defined (MFX_VA_LINUX)
     if (par->mfx.FrameInfo.FourCC != MFX_FOURCC_NV12 &&
-        par->mfx.FrameInfo.FourCC != MFX_FOURCC_RGB4)
+        par->mfx.FrameInfo.FourCC != MFX_FOURCC_RGB4 &&
+        par->mfx.FrameInfo.FourCC != MFX_FOURCC_YUY2)
         return true;
 
     /* on Linux in case of multiscan turn off HW support until because some functionality is missed so far */
@@ -1010,7 +1019,7 @@ bool MFX_JPEG_Utility::IsNeedPartialAcceleration(VideoCORE * core, mfxVideoParam
         return true;
 
     if (core->GetHWType() == MFX_HW_APL
-        || core->GetHWType() == MFX_HW_CFL
+        || core->GetHWType() >= MFX_HW_KBL
        )
     {
         switch (par->mfx.FrameInfo.FourCC)
@@ -1024,7 +1033,6 @@ bool MFX_JPEG_Utility::IsNeedPartialAcceleration(VideoCORE * core, mfxVideoParam
                     return false;
                 else
                     return true;
-/*
             case MFX_FOURCC_YUY2:
             case MFX_FOURCC_UYVY:
                 if( par->mfx.JPEGColorFormat == MFX_JPEG_COLORFORMAT_YCbCr &&
@@ -1032,10 +1040,10 @@ bool MFX_JPEG_Utility::IsNeedPartialAcceleration(VideoCORE * core, mfxVideoParam
                   ) return false;
                 else
                     return true;
-*/
             case MFX_FOURCC_RGB4:
                 if ((par->mfx.JPEGColorFormat == MFX_JPEG_COLORFORMAT_RGB && par->mfx.JPEGChromaFormat != MFX_CHROMAFORMAT_YUV444) ||
                     (par->mfx.JPEGColorFormat == MFX_JPEG_COLORFORMAT_YCbCr && par->mfx.JPEGChromaFormat == MFX_CHROMAFORMAT_YUV422V) ||
+                    (par->mfx.JPEGColorFormat == MFX_JPEG_COLORFORMAT_YCbCr && par->mfx.JPEGChromaFormat == MFX_CHROMAFORMAT_MONOCHROME) ||
                     (par->mfx.JPEGColorFormat == MFX_JPEG_COLORFORMAT_YCbCr && par->mfx.JPEGChromaFormat == MFX_CHROMAFORMAT_YUV411))
                     return true;
                 else
@@ -1044,8 +1052,7 @@ bool MFX_JPEG_Utility::IsNeedPartialAcceleration(VideoCORE * core, mfxVideoParam
                 return true;
         }
     }
-
-    if (core->GetHWType() == MFX_HW_BDW || core->GetHWType() == MFX_HW_SCL)
+    else if (core->GetHWType() == MFX_HW_BDW || core->GetHWType() == MFX_HW_SCL)
     {
         if (par->mfx.JPEGColorFormat == MFX_JPEG_COLORFORMAT_YCbCr &&
             par->mfx.JPEGChromaFormat == MFX_CHROMAFORMAT_MONOCHROME)
@@ -1058,18 +1065,12 @@ bool MFX_JPEG_Utility::IsNeedPartialAcceleration(VideoCORE * core, mfxVideoParam
             par->mfx.JPEGChromaFormat == MFX_CHROMAFORMAT_YUV444)
             return true;
 
-        if (par->mfx.JPEGColorFormat == MFX_JPEG_COLORFORMAT_YCbCr &&
-            par->mfx.JPEGChromaFormat == MFX_CHROMAFORMAT_YUV420 &&
-            par->mfx.FrameInfo.FourCC == MFX_FOURCC_RGB4 &&
-            (par->mfx.FrameInfo.Width > 4096 || par->mfx.FrameInfo.Height > 4096))
-            return true;
-
         if (par->mfx.JPEGColorFormat == MFX_JPEG_COLORFORMAT_RGB &&
             par->mfx.JPEGChromaFormat == MFX_CHROMAFORMAT_YUV444 &&
             par->mfx.FrameInfo.FourCC != MFX_FOURCC_RGB4)
             return true;
     }
-    if (core->GetHWType() == MFX_HW_VLV)
+    else if (core->GetHWType() == MFX_HW_VLV)
     {
         if (par->mfx.JPEGColorFormat == MFX_JPEG_COLORFORMAT_RGB) return true;
     }
@@ -1178,9 +1179,8 @@ mfxStatus MFX_JPEG_Utility::Query(VideoCORE *core, mfxVideoParam *in, mfxVideoPa
             sts = MFX_ERR_UNSUPPORTED;
         }
 
-        out->mfx.FrameInfo.Width = UMC::align_value<mfxU16>(in->mfx.FrameInfo.Width, 0x10);
-
-        out->mfx.FrameInfo.Height = UMC::align_value<mfxU16>(in->mfx.FrameInfo.Height,
+        out->mfx.FrameInfo.Width  = mfx::align2_value(in->mfx.FrameInfo.Width, 0x10);
+        out->mfx.FrameInfo.Height = mfx::align2_value(in->mfx.FrameInfo.Height,
             (in->mfx.FrameInfo.PicStruct == MFX_PICSTRUCT_PROGRESSIVE) ? 0x10 : 0x20);
 
         if (in->mfx.FrameInfo.CropX <= out->mfx.FrameInfo.Width)
@@ -1630,38 +1630,6 @@ mfxU32 VideoDECODEMJPEGBase_HW::AdjustFrameAllocRequest(mfxFrameAllocRequest *re
     // set FourCC
     AdjustFourCC(&request->Info, info, hwType, vaType, &needVpp);
 
-    // WA for rotation of unaligned images
-    mfxU16 mcuWidth;
-    mfxU16 mcuHeight;
-    mfxU16 paddingWidth;
-    mfxU16 paddingHeight;
-
-    switch(info->JPEGChromaFormat)
-    {
-    case MFX_CHROMAFORMAT_YUV411:
-        mcuWidth  = 32;
-        mcuHeight = 8;
-        break;
-    case MFX_CHROMAFORMAT_YUV420:
-        mcuWidth  = 16;
-        mcuHeight = 16;
-        break;
-    case MFX_CHROMAFORMAT_YUV422H:
-        mcuWidth  = 16;
-        mcuHeight = 8;
-        break;
-    case MFX_CHROMAFORMAT_YUV422V:
-        mcuWidth  = 8;
-        mcuHeight = 16;
-        break;
-    case MFX_CHROMAFORMAT_YUV400:
-    case MFX_CHROMAFORMAT_YUV444:
-    default:
-        mcuWidth  = 8;
-        mcuHeight = 8;
-        break;
-    }
-
     if(info->Rotation == MFX_ROTATION_90 || info->Rotation == MFX_ROTATION_180 || info->Rotation == MFX_ROTATION_270)
     {
         needVpp = true;
@@ -1673,31 +1641,6 @@ mfxU32 VideoDECODEMJPEGBase_HW::AdjustFrameAllocRequest(mfxFrameAllocRequest *re
         std::swap(request->Info.AspectRatioH, request->Info.AspectRatioW);
         std::swap(request->Info.CropH, request->Info.CropW);
         std::swap(request->Info.CropY, request->Info.CropX);
-    }
-
-
-    if(info->Rotation == MFX_ROTATION_90 || info->Rotation == MFX_ROTATION_270)
-        std::swap(mcuWidth, mcuHeight);
-
-    paddingWidth = (mfxU16)((2<<16) - request->Info.CropW) % mcuWidth;
-    paddingHeight = (mfxU16)((2<<16) - request->Info.CropH) % mcuHeight;
-
-    switch(info->Rotation)
-    {
-    case MFX_ROTATION_90:
-        request->Info.CropX = paddingWidth;
-        request->Info.CropW = request->Info.CropW + paddingWidth;
-        break;
-    case MFX_ROTATION_180:
-        request->Info.CropX = paddingWidth;
-        request->Info.CropW = request->Info.CropW + paddingWidth;
-        request->Info.CropY = paddingHeight;
-        request->Info.CropH = request->Info.CropH + paddingHeight;
-        break;
-    case MFX_ROTATION_270:
-        request->Info.CropY = paddingHeight;
-        request->Info.CropH = request->Info.CropH + paddingHeight;
-        break;
     }
 
     m_needVpp = needVpp;
@@ -1716,23 +1659,14 @@ mfxU32 VideoDECODEMJPEGBase_HW::AdjustFrameAllocRequest(mfxFrameAllocRequest *re
     return m_needVpp ? 1 : 0;
 }
 
-void VideoDECODEMJPEGBase_HW::AdjustFourCC(mfxFrameInfo *requestFrameInfo, mfxInfoMFX *info, eMFXHWType hwType, eMFXVAType vaType, bool *needVpp)
+void VideoDECODEMJPEGBase_HW::AdjustFourCC(mfxFrameInfo *requestFrameInfo, mfxInfoMFX *info, eMFXHWType /*hwType*/, eMFXVAType /*vaType*/, bool *needVpp)
 {
-    (void)vaType;
-
     if (info->JPEGColorFormat == MFX_JPEG_COLORFORMAT_UNKNOWN || info->JPEGColorFormat == MFX_JPEG_COLORFORMAT_YCbCr)
     {
-        #if defined (MFX_VA_LINUX)
-            if (hwType == MFX_HW_APL) return;
-        #endif
         switch(info->JPEGChromaFormat)
         {
         case MFX_CHROMAFORMAT_MONOCHROME:
-            if (requestFrameInfo->FourCC == MFX_FOURCC_RGB4 &&
-                requestFrameInfo->CropW >= 128 &&
-                requestFrameInfo->CropH >= 128 &&
-                requestFrameInfo->CropW <= 4096 &&
-                requestFrameInfo->CropH <= 4096)
+            if (requestFrameInfo->FourCC == MFX_FOURCC_RGB4)
             {
                 requestFrameInfo->FourCC = MFX_FOURCC_NV12;
                 *needVpp = true;
@@ -1740,11 +1674,7 @@ void VideoDECODEMJPEGBase_HW::AdjustFourCC(mfxFrameInfo *requestFrameInfo, mfxIn
             break;
         case MFX_CHROMAFORMAT_YUV420:
             if (info->Rotation == MFX_ROTATION_0 &&
-                requestFrameInfo->FourCC == MFX_FOURCC_RGB4 &&
-                requestFrameInfo->CropW >= 128 &&
-                requestFrameInfo->CropH >= 128 &&
-                requestFrameInfo->CropW <= 4096 &&
-                requestFrameInfo->CropH <= 4096)
+                requestFrameInfo->FourCC == MFX_FOURCC_RGB4)
             {
                 requestFrameInfo->FourCC = MFX_FOURCC_NV12;
                 *needVpp = true;
@@ -1754,11 +1684,7 @@ void VideoDECODEMJPEGBase_HW::AdjustFourCC(mfxFrameInfo *requestFrameInfo, mfxIn
             break;
         case MFX_CHROMAFORMAT_YUV422H:
             if (info->Rotation == MFX_ROTATION_0 &&
-                requestFrameInfo->FourCC == MFX_FOURCC_RGB4 &&
-                requestFrameInfo->CropW >= 128 &&
-                requestFrameInfo->CropH >= 128 &&
-                requestFrameInfo->CropW <= 4096 &&
-                requestFrameInfo->CropH <= 4096)
+                requestFrameInfo->FourCC == MFX_FOURCC_RGB4)
             {
                 requestFrameInfo->FourCC = MFX_FOURCC_NV12;
                 *needVpp = true;
@@ -1768,11 +1694,10 @@ void VideoDECODEMJPEGBase_HW::AdjustFourCC(mfxFrameInfo *requestFrameInfo, mfxIn
             break;
         case MFX_CHROMAFORMAT_YUV444:
             if (info->Rotation == MFX_ROTATION_0 &&
-                requestFrameInfo->FourCC == MFX_FOURCC_RGB4 &&
-                requestFrameInfo->CropW >= 128 &&
-                requestFrameInfo->CropH >= 128 &&
-                requestFrameInfo->CropW <= 4096 &&
-                requestFrameInfo->CropH <= 4096)
+                (requestFrameInfo->FourCC == MFX_FOURCC_RGB4
+                 // for YUV444 jpeg, decoded stream contains 444P,
+                 // to get NV12 we must use VPP
+                 || requestFrameInfo->FourCC == MFX_FOURCC_NV12))
             {
                 requestFrameInfo->FourCC = MFX_FOURCC_NV12;
                 *needVpp = true;
@@ -1783,7 +1708,6 @@ void VideoDECODEMJPEGBase_HW::AdjustFourCC(mfxFrameInfo *requestFrameInfo, mfxIn
             break;
         }
     }
-    return;
 }
 
 

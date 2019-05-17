@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -725,6 +725,80 @@ namespace
         return mfxU32(384 * GetMaxMbps(par) / frameRate / GetMinCr(par.mfx.CodecLevel));
     }
 
+    mfxStatus CheckMaxFrameSize(MfxVideoParam & par, ENCODE_CAPS const & hwCaps)
+    {
+        mfxExtCodingOption2 & extOpt2 = GetExtBufferRef(par);
+        mfxExtCodingOption3 & extOpt3 = GetExtBufferRef(par);
+
+        if (extOpt2.MaxFrameSize == 0 && extOpt3.MaxFrameSizeI == 0 && extOpt3.MaxFrameSizeP == 0)
+            return MFX_ERR_NONE;
+
+        bool changed = false;
+        bool unsupported = false;
+
+        bool IsEnabledSwBrc = bRateControlLA(par.mfx.RateControlMethod) || (IsOn(extOpt2.ExtBRC) && (par.mfx.RateControlMethod == MFX_RATECONTROL_CBR || par.mfx.RateControlMethod == MFX_RATECONTROL_VBR));
+
+        if ((par.mfx.RateControlMethod == MFX_RATECONTROL_CBR || par.mfx.RateControlMethod == MFX_RATECONTROL_CQP) || // max frame size supported only for VBR based methods
+            (hwCaps.UserMaxFrameSizeSupport == 0 && !IsEnabledSwBrc))
+        {
+            if (extOpt2.MaxFrameSize != 0 || extOpt3.MaxFrameSizeI != 0 || extOpt3.MaxFrameSizeP != 0)
+                changed = true;
+            extOpt2.MaxFrameSize = 0;
+            extOpt3.MaxFrameSizeI = 0;
+            extOpt3.MaxFrameSizeP = 0;
+        }
+        else
+        {
+            if (par.calcParam.cqpHrdMode == 0 && par.calcParam.targetKbps != 0 &&
+                par.mfx.FrameInfo.FrameRateExtN != 0 && par.mfx.FrameInfo.FrameRateExtD != 0)
+            {
+                mfxF64 frameRate = mfxF64(par.mfx.FrameInfo.FrameRateExtN) / par.mfx.FrameInfo.FrameRateExtD;
+                mfxU32 avgFrameSizeInBytes = mfxU32(par.calcParam.targetKbps / frameRate * (1000 / 8));
+                if ((extOpt2.MaxFrameSize < avgFrameSizeInBytes) && (extOpt2.MaxFrameSize != 0))
+                {
+                    changed = true;
+                    extOpt2.MaxFrameSize = 0;
+                }
+                if ((extOpt3.MaxFrameSizeI < avgFrameSizeInBytes) && (extOpt3.MaxFrameSizeI != 0))
+                {
+                    changed = true;
+                    extOpt3.MaxFrameSizeI = 0;
+                    extOpt3.MaxFrameSizeP = 0;
+                }
+            }
+            if ((extOpt2.MaxFrameSize != 0 && extOpt3.MaxFrameSizeI != 0) &&
+                extOpt3.MaxFrameSizeI != extOpt2.MaxFrameSize)
+            {
+                extOpt2.MaxFrameSize = 0;
+                changed = true;
+            }
+            if (extOpt3.MaxFrameSizeI == 0 && extOpt3.MaxFrameSizeP != 0)
+            {
+                extOpt3.MaxFrameSizeP = 0;
+                unsupported = true;
+            }
+        }
+
+#if MFX_VERSION >= 1023
+        if (!CheckTriStateOption(extOpt3.AdaptiveMaxFrameSize)) changed = true;
+
+        if (hwCaps.UserMaxFrameSizeSupport == 0 && !IsEnabledSwBrc && IsOn(extOpt3.AdaptiveMaxFrameSize))
+        {
+            extOpt3.AdaptiveMaxFrameSize = MFX_CODINGOPTION_UNKNOWN;
+            unsupported = true;
+        }
+
+        if (hwCaps.UserMaxFrameSizeSupport == 1 && !IsEnabledSwBrc &&
+            (extOpt3.MaxFrameSizeP == 0 || IsOn(par.mfx.LowPower)) &&
+            IsOn(extOpt3.AdaptiveMaxFrameSize))
+        {
+            extOpt3.AdaptiveMaxFrameSize = MFX_CODINGOPTION_UNKNOWN;
+            changed = true;
+        }
+#endif
+        return unsupported ? MFX_ERR_UNSUPPORTED : (changed ? MFX_WRN_INCOMPATIBLE_VIDEO_PARAM : MFX_ERR_NONE);
+    }
+
     mfxU32 GetMaxVmv(mfxU32 level)
     {
         switch (level)
@@ -1426,24 +1500,6 @@ mfxStatus MfxHwH264Encode::QueryMbProcRate(VideoCORE* core, mfxVideoParam const 
     mbPerSec[(par.mfx.TargetUsage?par.mfx.TargetUsage:4) - 1] = tempMbPerSec[0];
 
     return pEncodeCaps->SetHWCaps<mfxU32>(guid, mbPerSec, 16);
-}
-
-mfxStatus MfxHwH264Encode::QueryInputTilingSupport(VideoCORE* core, mfxVideoParam const & par, mfxU32 &inputTiling, GUID guid, mfxU32 width,  mfxU32 height)
-{
-
-    std::unique_ptr<DriverEncoder> ddi;
-
-    ddi.reset(CreatePlatformH264Encoder(core));
-    if (ddi.get() == 0)
-        return Error(MFX_ERR_DEVICE_FAILED);
-
-    mfxStatus sts = ddi->CreateAuxilliaryDevice(core, guid, width, height, true);
-    MFX_CHECK_STS(sts);
-
-    sts = ddi->QueryInputTilingSupport(par, inputTiling);
-    MFX_CHECK_STS(sts);
-
-    return MFX_ERR_NONE;
 }
 
 mfxStatus MfxHwH264Encode::QueryGuid(VideoCORE* core, GUID guid)
@@ -2683,10 +2739,6 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
                 extOpt3->WinBRCSize = 0;
                 changed = true;
             }
-            if (!extOpt2->MaxFrameSize && !extOpt3->MaxFrameSizeI) {
-                extOpt2->MaxFrameSize = par.mfx.MaxKbps ? par.mfx.MaxKbps : par.mfx.TargetKbps;
-                changed = true;
-            }
             if (par.mfx.GopRefDist != 0 && par.mfx.GopRefDist != 1) {
                 par.mfx.GopRefDist = 1;
                 changed = true;
@@ -2828,7 +2880,8 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
         par.mfx.FrameInfo.FourCC != MFX_FOURCC_NV12 &&
         par.mfx.FrameInfo.FourCC != MFX_FOURCC_RGB4 &&
         par.mfx.FrameInfo.FourCC != MFX_FOURCC_BGR4 &&
-        par.mfx.FrameInfo.FourCC != MFX_FOURCC_YUY2)
+        par.mfx.FrameInfo.FourCC != MFX_FOURCC_YUY2 &&
+        par.mfx.FrameInfo.FourCC != MFX_FOURCC_AYUV)
     {
         unsupported = true;
         par.mfx.FrameInfo.FourCC = 0;
@@ -2853,6 +2906,16 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
 
         changed = true;
         par.mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV422;
+    }
+
+    if (par.mfx.FrameInfo.FourCC == MFX_FOURCC_AYUV &&
+        par.mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV444)
+    {
+        if (extBits->SPSBuffer)
+            return Error(MFX_ERR_INCOMPATIBLE_VIDEO_PARAM);
+
+        changed = true;
+        par.mfx.FrameInfo.ChromaFormat = MFX_CHROMAFORMAT_YUV444;
     }
 
     if ((par.mfx.FrameInfo.FourCC == MFX_FOURCC_RGB4 || par.mfx.FrameInfo.FourCC == MFX_FOURCC_BGR4) &&
@@ -3357,6 +3420,12 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
         par.mfx.RateControlMethod = 0;
     }
 
+    if (extOpt2->LookAheadDS > MFX_LOOKAHEAD_DS_4x)
+    {
+        extOpt2->LookAheadDS = MFX_LOOKAHEAD_DS_4x;
+        changed = true;
+    }
+
     if (extOpt2->LookAheadDS == MFX_LOOKAHEAD_DS_4x)
     {
         extOpt2->LookAheadDS = MFX_LOOKAHEAD_DS_2x;
@@ -3365,8 +3434,8 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
 
     if (extOpt2->LookAheadDS > MFX_LOOKAHEAD_DS_OFF)
     {
-        par.calcParam.widthLa = AlignValue<mfxU16>((par.mfx.FrameInfo.Width / LaDSenumToFactor(extOpt2->LookAheadDS)), 16);
-        par.calcParam.heightLa = AlignValue<mfxU16>((par.mfx.FrameInfo.Height / LaDSenumToFactor(extOpt2->LookAheadDS)), 16);
+        par.calcParam.widthLa  = mfx::align2_value((par.mfx.FrameInfo.Width  / LaDSenumToFactor(extOpt2->LookAheadDS)), 16);
+        par.calcParam.heightLa = mfx::align2_value((par.mfx.FrameInfo.Height / LaDSenumToFactor(extOpt2->LookAheadDS)), 16);
     } else
     {
         par.calcParam.widthLa = par.mfx.FrameInfo.Width;
@@ -3448,23 +3517,6 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
 
                     changed = true;
                     par.calcParam.targetKbps = mfxU32(MFX_MIN(GetMaxBitrate(par) / 1000, UINT_MAX));
-                }
-            }
-
-            if (((extOpt2->MaxFrameSize != 0) || (extOpt3->MaxFrameSizeI != 0) || (extOpt3->MaxFrameSizeP != 0)) &&
-                par.mfx.FrameInfo.FrameRateExtN != 0 && par.mfx.FrameInfo.FrameRateExtD != 0)
-            {
-                mfxF64 frameRate = mfxF64(par.mfx.FrameInfo.FrameRateExtN) / par.mfx.FrameInfo.FrameRateExtD;
-                mfxU32 avgFrameSizeInBytes = mfxU32(par.calcParam.targetKbps * 1000 / frameRate / 8);
-                if ((extOpt2->MaxFrameSize < avgFrameSizeInBytes) && (extOpt2->MaxFrameSize != 0))
-                {
-                    changed = true;
-                    extOpt2->MaxFrameSize = avgFrameSizeInBytes;
-                }
-                if ((extOpt3->MaxFrameSizeI < avgFrameSizeInBytes) && (extOpt3->MaxFrameSizeI != 0))
-                {
-                    changed = true;
-                    extOpt3->MaxFrameSizeI = avgFrameSizeInBytes;
                 }
             }
         }
@@ -3724,18 +3776,11 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
         }
     }
 
-    if (extOpt3->MaxFrameSizeI != 0)
-    {
-        if (extOpt2->MaxFrameSize != 0)
-        {
-            extOpt2->MaxFrameSize = extOpt3->MaxFrameSizeI;
-            changed = true;
-        }
-    }
-    else if (extOpt3->MaxFrameSizeP != 0)
-    {
+    mfxStatus sts = CheckMaxFrameSize(par, hwCaps);
+    if (sts == MFX_ERR_UNSUPPORTED)
         unsupported = true;
-    }
+    else if (sts == MFX_WRN_INCOMPATIBLE_VIDEO_PARAM)
+        changed = true;
 
     if (IsOn(extOpt2->ExtBRC) && par.mfx.RateControlMethod != 0 && par.mfx.RateControlMethod !=MFX_RATECONTROL_CBR && par.mfx.RateControlMethod !=MFX_RATECONTROL_VBR)
     {
@@ -3833,6 +3878,20 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
         if (!CheckRange(par.mfx.QPI, 0, 51)) changed = true;
         if (!CheckRange(par.mfx.QPP, 0, 51)) changed = true;
         if (!CheckRange(par.mfx.QPB, 0, 51)) changed = true;
+    }
+
+    if (par.mfx.RateControlMethod == MFX_RATECONTROL_CBR &&
+        hwCaps.CBRSupport == 0)
+    {
+        par.mfx.RateControlMethod = 0;
+        unsupported = true;
+    }
+
+    if (par.mfx.RateControlMethod == MFX_RATECONTROL_VBR &&
+        hwCaps.VBRSupport == 0)
+    {
+        par.mfx.RateControlMethod = 0;
+        unsupported = true;
     }
 
     if (par.mfx.RateControlMethod == MFX_RATECONTROL_ICQ &&
@@ -3982,15 +4041,6 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
                     return Error(MFX_ERR_INCOMPATIBLE_VIDEO_PARAM);
         }
     }
-#if MFX_VERSION >= 1023
-    if (!CheckTriStateOption(extOpt3->AdaptiveMaxFrameSize)) changed = true;
-
-    if (hwCaps.UserMaxFrameSizeSupport == 0 &&  IsOn(extOpt3->AdaptiveMaxFrameSize) )
-    {
-        extOpt3->AdaptiveMaxFrameSize = 0;
-        changed = true;
-    }
-#endif
 
 #if (MFX_VERSION >= 1026)
     if (!CheckTriStateOption(extOpt3->ExtBrcAdaptiveLTR)) changed = true;
@@ -4035,14 +4085,6 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
         }
     }
 #endif // (MFX_VERSION >= 1026)
-
-    if (hwCaps.UserMaxFrameSizeSupport == 0 && ((extOpt2->MaxFrameSize) || (extOpt3->MaxFrameSizeI) || (extOpt3->MaxFrameSizeP)))
-    {
-        extOpt2->MaxFrameSize = 0;
-        extOpt3->MaxFrameSizeI = 0;
-        extOpt3->MaxFrameSizeP = 0;
-        changed = true;
-    }
 
     if (IsMvcProfile(par.mfx.CodecProfile) && MFX_ERR_UNSUPPORTED == CheckMVCSeqDescQueryLike(extMvc))
     {
@@ -4317,9 +4359,9 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
     for (mfxU16 i = 0; i < extRoi->NumROI; i++)
     {
 #if MFX_VERSION > 1021
-        mfxStatus sts = CheckAndFixRoiQueryLike(par, (mfxRoiDesc*)(&(extRoi->ROI[i])), extRoi->ROIMode);
+        sts = CheckAndFixRoiQueryLike(par, (mfxRoiDesc*)(&(extRoi->ROI[i])), extRoi->ROIMode);
 #else
-        mfxStatus sts = CheckAndFixRoiQueryLike(par, (mfxRoiDesc*)(&(extRoi->ROI[i])), 0);
+        sts = CheckAndFixRoiQueryLike(par, (mfxRoiDesc*)(&(extRoi->ROI[i])), 0);
 #endif // MFX_VERSION > 1021
         if (sts < MFX_ERR_NONE)
             unsupported = true;
@@ -4341,7 +4383,7 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
 
     for (mfxU16 i = 0; i < extDirtyRect->NumRect; i++)
     {
-        mfxStatus sts = CheckAndFixRectQueryLike(par, (mfxRectDesc*)(&(extDirtyRect->Rect[i])));
+        sts = CheckAndFixRectQueryLike(par, (mfxRectDesc*)(&(extDirtyRect->Rect[i])));
         if (sts < MFX_ERR_NONE)
             unsupported = true;
         else if (sts != MFX_ERR_NONE)
@@ -4362,7 +4404,7 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
 
     for (mfxU16 i = 0; i < extMoveRect->NumRect; i++)
     {
-        mfxStatus sts = CheckAndFixMovingRectQueryLike(par, (mfxMovingRectDesc*)(&(extMoveRect->Rect[i])));
+        sts = CheckAndFixMovingRectQueryLike(par, (mfxMovingRectDesc*)(&(extMoveRect->Rect[i])));
         if (sts < MFX_ERR_NONE)
             unsupported = true;
         else if (sts != MFX_ERR_NONE)
@@ -4438,7 +4480,7 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
 
     if (!CheckRangeDflt(extOpt2->SkipFrame, 0, 3, 0)) changed = true;
 
-    if ( extOpt2->SkipFrame && hwCaps.SkipFrame == 0 && par.mfx.RateControlMethod != MFX_RATECONTROL_CQP && par.mfx.RateControlMethod != MFX_RATECONTROL_LA_HRD)
+    if ( extOpt2->SkipFrame && hwCaps.SkipFrame == 0 && par.mfx.RateControlMethod != MFX_RATECONTROL_CQP)
     {
         extOpt2->SkipFrame = 0;
         changed = true;
@@ -4544,19 +4586,7 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
         if (!CheckRangeDflt(extOpt2->MinQPP, 0, (extOpt2->MaxQPP ? extOpt2->MaxQPP : 51), 0)) changed = true;
         if (!CheckRangeDflt(extOpt2->MinQPB, 0, (extOpt2->MaxQPB ? extOpt2->MaxQPB : 51), 0)) changed = true;
     }
-    if ((extOpt3->WinBRCSize > 0 && (par.mfx.RateControlMethod != MFX_RATECONTROL_VBR && par.mfx.RateControlMethod != MFX_RATECONTROL_QVBR)) || (par.mfx.RateControlMethod == MFX_RATECONTROL_LA_HRD))
-    {
-        if (extOpt2->SkipFrame!=0 && extOpt2->SkipFrame != MFX_SKIPFRAME_INSERT_DUMMY)
-        {
-            extOpt2->SkipFrame = MFX_SKIPFRAME_INSERT_DUMMY;
-            changed = true;
-        }
-        if (extOpt2->BRefType != MFX_B_REF_OFF && extOpt2->BRefType != 0)
-        {
-            extOpt2->BRefType  = MFX_B_REF_OFF;
-            changed = true;
-        }
-    }
+
     if (!CheckTriStateOption(extOpt3->BRCPanicMode)) changed = true;
     if (IsOff(extOpt3->BRCPanicMode)
      && (bRateControlLA(par.mfx.RateControlMethod)
@@ -4637,15 +4667,6 @@ mfxStatus MfxHwH264Encode::CheckVideoParamQueryLike(
         extOpt3->WeightedBiPred = MFX_WEIGHTED_PRED_DEFAULT;
         unsupported = true;
     }
-
-#if MFX_VERSION >= 1023
-    //  LINUX DO NOT SUPPORT AdaptiveMaxFrameSize so reset it to zero if it is set
-    if ( IsOn(extOpt3->AdaptiveMaxFrameSize) )
-    {
-        extOpt3->AdaptiveMaxFrameSize = 0;
-        changed = true;
-    }
-#endif
 
     if (!CheckTriStateOption(extOpt3->FadeDetection)) changed = true;
 
@@ -5483,10 +5504,6 @@ void MfxHwH264Encode::SetDefaults(
         }
     }
 
-    if ((!extOpt2->SkipFrame) && ((extOpt3->WinBRCSize > 0 && (par.mfx.RateControlMethod != MFX_RATECONTROL_VBR && par.mfx.RateControlMethod != MFX_RATECONTROL_QVBR)) || par.mfx.RateControlMethod == MFX_RATECONTROL_LA_HRD))
-    {
-        extOpt2->SkipFrame = MFX_SKIPFRAME_INSERT_DUMMY;
-    }
 
     //WA for MVC quality problem on progressive content.
     if (IsMvcProfile(par.mfx.CodecProfile)) {
@@ -5566,12 +5583,11 @@ void MfxHwH264Encode::SetDefaults(
         if (platform >= MFX_HW_HSW && platform != MFX_HW_VLV &&
             IsDyadic(par.calcParam.scale, par.calcParam.numTemporalLayer) &&
             par.mfx.GopRefDist >= 4 &&
-            IsPowerOf2(par.mfx.GopRefDist) &&
-            par.mfx.GopPicSize % par.mfx.GopRefDist == 0 &&
-            !bRateControlLA(par.mfx.RateControlMethod) &&
-            (!par.mfx.NumRefFrame || par.mfx.NumRefFrame >= GetMinNumRefFrameForPyramid(par)))
+            (!par.mfx.NumRefFrame || par.mfx.NumRefFrame >= GetMinNumRefFrameForPyramid(par)) &&
+            (!IsMvcProfile(par.mfx.CodecProfile) || (IsPowerOf2(par.mfx.GopRefDist) && (par.mfx.GopPicSize % par.mfx.GopRefDist) == 0)) &&
+            par.mfx.FrameInfo.PicStruct == MFX_PICSTRUCT_PROGRESSIVE)
         {
-            extOpt2->BRefType = mfxU16(par.mfx.FrameInfo.PicStruct == MFX_PICSTRUCT_PROGRESSIVE ? MFX_B_REF_PYRAMID : MFX_B_REF_OFF);
+            extOpt2->BRefType = MFX_B_REF_PYRAMID;
         }
         else
         {
@@ -6034,8 +6050,28 @@ void MfxHwH264Encode::SetDefaults(
         extDdi->CabacInitIdcPlus1 = GetCabacInitIdc(par.mfx.TargetUsage) + 1;
     }
 
-    if (hwCaps.UserMaxFrameSizeSupport && extOpt2->MaxFrameSize == 0)
-        extOpt2->MaxFrameSize = MFX_MIN(GetMaxFrameSize(par), GetFirstMaxFrameSize(par));
+    bool IsEnabledSwBrc = false;
+    IsEnabledSwBrc = bRateControlLA(par.mfx.RateControlMethod) || (IsOn(extOpt2->ExtBRC) && (par.mfx.RateControlMethod == MFX_RATECONTROL_CBR || par.mfx.RateControlMethod == MFX_RATECONTROL_VBR));
+
+    if ((hwCaps.UserMaxFrameSizeSupport != 0 || IsEnabledSwBrc) &&
+        (par.mfx.RateControlMethod != MFX_RATECONTROL_CBR &&
+         par.mfx.RateControlMethod != MFX_RATECONTROL_CQP) &&
+        extOpt2->MaxFrameSize == 0)
+    {
+        extOpt2->MaxFrameSize = std::max(extOpt3->MaxFrameSizeI, extOpt3->MaxFrameSizeP);
+
+        if (extOpt3->LowDelayBRC == MFX_CODINGOPTION_ON)
+        {
+            mfxU32 avgFrameSizeInBytes = mfxU32((par.mfx.MaxKbps ? par.mfx.MaxKbps : par.mfx.TargetKbps) /
+                (mfxF64(par.mfx.FrameInfo.FrameRateExtN) / par.mfx.FrameInfo.FrameRateExtD) * (1000 / 8));
+            extOpt2->MaxFrameSize = extOpt2->MaxFrameSize ? extOpt2->MaxFrameSize : avgFrameSizeInBytes;
+        }
+        else
+        {
+            extOpt2->MaxFrameSize = extOpt2->MaxFrameSize ? extOpt2->MaxFrameSize :
+                std::min(GetMaxFrameSize(par), GetFirstMaxFrameSize(par));
+        }
+    }
 
 #if MFX_VERSION >= 1023
     if (extOpt3->AdaptiveMaxFrameSize == MFX_CODINGOPTION_UNKNOWN)
@@ -7007,19 +7043,19 @@ mfxU8 MfxHwH264Encode::ConvertMfxFrameType2SliceType(mfxU8 type)
 
 mfxU32 SliceDivider::GetFirstMbInSlice() const
 {
-    assert(m_currSliceFirstMbRow * m_numMbInRow < 0x100000000);
+    assert(m_currSliceFirstMbRow * m_numMbInRow < 0x10000000);
     return m_currSliceFirstMbRow * m_numMbInRow;
 }
 
 mfxU32 SliceDivider::GetNumMbInSlice() const
 {
-    assert(m_currSliceNumMbRow * m_numMbInRow < 0x100000000);
+    assert(m_currSliceNumMbRow * m_numMbInRow < 0x10000000);
     return m_currSliceNumMbRow * m_numMbInRow;
 }
 
 mfxU32 SliceDivider::GetNumSlice() const
 {
-    assert(0 < m_numSlice && m_numSlice < 0x100000000);
+    assert(0 < m_numSlice && m_numSlice < 0x10000000);
     return m_numSlice;
 }
 
@@ -8915,6 +8951,8 @@ void HeaderPacker::Init(
     m_hwCaps = hwCaps;
 
     m_longStartCodes = IsOn(extDdi.LongStartCodes) && !IsOn(par.mfx.LowPower);
+
+    m_isLowPower = IsOn(par.mfx.LowPower);
 }
 
 void HeaderPacker::ResizeSlices(mfxU32 num)
@@ -8981,22 +9019,25 @@ std::vector<ENCODE_PACKEDHEADER_DATA> const & HeaderPacker::PackSlices(
     DdiTask const & task,
     mfxU32          fieldId)
 {
+    const mfxU32 maxSliceHeaderSize = 50;  //maximum coded slice header size in bytes
+    size_t numSlices = task.m_SliceInfo.size() ?
+        task.m_SliceInfo.size() :
+        task.m_numSlice[fieldId];
+
     if (task.m_SliceInfo.size())
     {
-        mfxU32 numSlices = (mfxU32)task.m_SliceInfo.size();
         m_numMbPerSlice = 0;
-        m_packedSlices.resize(numSlices);
-        if (m_sliceBuffer.size() < (size_t) (numSlices*50))
-        {
-            m_sliceBuffer.resize(numSlices*50);
-        }
-        Zero(m_sliceBuffer);
-    }
-    else if (task.m_numSlice[fieldId])
-    {
-        m_packedSlices.resize(task.m_numSlice[fieldId]);
     }
 
+    if (numSlices)
+    {
+        m_packedSlices.resize(numSlices);
+        if (m_sliceBuffer.size() < (numSlices * maxSliceHeaderSize))
+        {
+            m_sliceBuffer.resize(numSlices * maxSliceHeaderSize);
+        }
+    }
+    Zero(m_sliceBuffer);
     Zero(m_packedSlices);
 
     mfxU8 * sliceBufferBegin = Begin(m_sliceBuffer);
@@ -9135,7 +9176,7 @@ mfxU32 HeaderPacker::WriteSlice(
         (mfxU32)m_packedSlices.size(),
         sps.picWidthInMbsMinus1 + 1,
         picHeightInMBs,
-        m_hwCaps.SliceLevelRateCtrl);
+        m_isLowPower);
 
     mfxU32 firstMbInSlice = 0;
     for (mfxU32 i = 0; i <= sliceId; i++, divider.Next())
@@ -9467,11 +9508,9 @@ const mfxI8 M_N_cbp_b[12][3][2] = { // [ctxIdx][cabac_init_idc][m, n]
     {{-29, 127}, {-36, 127}, {-37, 127}}
 };
 
-#define Clip3(min, max, val) val > max ? max : val < min ? min : val
-
 inline void InitCabacContext(mfxI16 m, mfxI16 n, mfxU16 sliceQP, mfxU8& ctx)
 {
-    mfxI16 preCtxState = Clip3( 1, 126, ( ( m * sliceQP ) >> 4 ) + n);
+    mfxI16 preCtxState = mfx::clamp<mfxI16>(( ( m * sliceQP ) >> 4 ) + n, 1, 126);
     if (preCtxState <= 63)
         ctx = mfxU8(63 - preCtxState); // MPS = 0
     else

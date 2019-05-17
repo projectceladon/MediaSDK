@@ -1,15 +1,15 @@
-// Copyright (c) 2018 Intel Corporation
-// 
+// Copyright (c) 2018-2019 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -1112,9 +1112,11 @@ typedef enum {
     MFX_HANDLE_D3D11_DEVICE                     = 3,
     MFX_HANDLE_VA_DISPLAY                       = 4,
     MFX_HANDLE_RESERVED3                        = 5,
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= 1030)
     MFX_HANDLE_VA_CONFIG_ID                     = 6,
     MFX_HANDLE_VA_CONTEXT_ID                    = 7,
+#endif
+#if (MFX_VERSION >= MFX_VERSION_NEXT)
     MFX_HANDLE_CM_DEVICE                        = 8
 #endif
 } mfxHandleType;
@@ -1283,26 +1285,11 @@ typedef struct {
     }Layer[8];
 } mfxExtAvcTemporalLayers;
 
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
-
-enum {
-    MFX_MEMORY_TILING_LINEAR = 0x0001,
-    MFX_MEMORY_TILING_Y      = 0x0002,
-    MFX_MEMORY_TILING_X      = 0x0004
-};
-
-#endif
-
 typedef struct {
     mfxExtBuffer Header;
 
     mfxU32      MBPerSec;
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
-    mfxU16      InputMemoryTiling;
-    mfxU16      reserved[57];
-#else
     mfxU16      reserved[58];
-#endif
 } mfxExtEncoderCapability;
 
 typedef struct {
@@ -2031,12 +2018,11 @@ typedef struct {
     mfxI16  QIndexDeltaLumaDC;
     mfxI16  QIndexDeltaChromaAC;
     mfxI16  QIndexDeltaChromaDC;
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= 1029)
     mfxU16  NumTileRows;
     mfxU16  NumTileColumns;
-    mfxU16  DynamicScaling;
-    mfxU16  reserved[109];
-#else // API 1.26
+    mfxU16  reserved[110];
+#else
     mfxU16  reserved[112];
 #endif
 } mfxExtVP9Param;

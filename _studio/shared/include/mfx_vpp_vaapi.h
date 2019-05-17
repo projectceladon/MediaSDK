@@ -36,8 +36,6 @@
 #include <assert.h>
 #include <set>
 
-#define MFX_CHECK_WITH_ASSERT(EXPR, ERR) {assert(EXPR); MFX_CHECK(EXPR,ERR); }
-
 namespace MfxHwVideoProcessing
 {
     class VAAPIVideoProcessing : public DriverVideoProcessing
@@ -164,7 +162,7 @@ namespace MfxHwVideoProcessing
 
         mfxStatus Close( void );
 
-        mfxStatus RemoveBufferFromPipe(VABufferID);
+        mfxStatus RemoveBufferFromPipe(VABufferID & id);
     };
 
 }; // namespace

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -186,10 +186,9 @@ inline void SetOrCopy(mfxExtVP9Param *pDst, mfxExtVP9Param const *pSrc = 0, bool
     SET_OR_COPY_PAR(QIndexDeltaChromaAC);
     SET_OR_COPY_PAR(QIndexDeltaChromaDC);
 
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= 1029)
     SET_OR_COPY_PAR(NumTileRows);
     SET_OR_COPY_PAR(NumTileColumns);
-    SET_OR_COPY_PAR(DynamicScaling);
 #endif
 }
 
@@ -729,10 +728,8 @@ mfxStatus CheckSegmentationParam(mfxExtVP9Segmentation& seg, mfxU32 frameWidth, 
         unsupported = true;
     }
 
-    // for Gen10 driver supports only 16x16 granularity for segmentation map
-    // but every 32x32 block of seg map should contain equal segment ids because of HW limitation
-    // so segment map is accepted from application in terms of 32x32 or 64x64 blocks
-    if (seg.SegmentIdBlockSize && seg.SegmentIdBlockSize < MFX_VP9_SEGMENT_ID_BLOCK_SIZE_32x32)
+    // currently only 64x64 block size for segmentation map supported (HW limitation)
+    if (seg.SegmentIdBlockSize && seg.SegmentIdBlockSize != MFX_VP9_SEGMENT_ID_BLOCK_SIZE_64x64)
     {
         seg.SegmentIdBlockSize = 0;
         unsupported = true;
@@ -1470,7 +1467,7 @@ mfxStatus CheckParameters(VP9MfxVideoParam &par, ENCODE_CAPS_VP9 const &caps)
         changed = true;
     }
 
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= 1029)
     mfxU16& rows = extPar.NumTileRows;
     mfxU16& cols = extPar.NumTileColumns;
     if (rows * cols  > 1 && caps.TileSupport == 0)
@@ -1537,22 +1534,13 @@ mfxStatus CheckParameters(VP9MfxVideoParam &par, ENCODE_CAPS_VP9 const &caps)
         unsupported = true;
     }
 
-    if (false == CheckTriStateOption(extPar.DynamicScaling))
+    // known limitation: temporal scalability and tiles don't work together
+    if (par.m_numLayers > 1 && (rows > 1 || cols > 1))
     {
-        changed = true;
-    }
-    if (!caps.DynamicScaling && extPar.DynamicScaling == MFX_CODINGOPTION_ON)
-    {
-        extPar.DynamicScaling = MFX_CODINGOPTION_OFF;
+        rows = cols = 1;
         unsupported = true;
     }
-    //known limitation: these 2 features don't work together
-    if (extPar.DynamicScaling == MFX_CODINGOPTION_ON && par.m_numLayers > 0)
-    {
-        extPar.DynamicScaling = MFX_CODINGOPTION_OFF;
-        unsupported = true;
-    }
-#endif // MFX_VERSION >= MFX_VERSION_NEXT
+#endif // MFX_VERSION >= 1029
 
     return GetCheckStatus(changed, unsupported);
 }
@@ -1664,10 +1652,6 @@ mfxStatus SetDefaults(
         SetDefault(par.mfx.RateControlMethod, MFX_RATECONTROL_CBR);
     }
 
-    if (IsBufferBasedBRC(par.mfx.RateControlMethod))
-    {
-        SetDefault(par.m_initialDelayInKb, par.m_bufferSizeInKb / 2);
-    }
     if (IsBitrateBasedBRC(par.mfx.RateControlMethod))
     {
         if (par.m_numLayers)
@@ -1701,6 +1685,10 @@ mfxStatus SetDefaults(
     }
 
     SetDefault(par.m_bufferSizeInKb, GetDefaultBufferSize(par));
+    if (IsBufferBasedBRC(par.mfx.RateControlMethod))
+    {
+        SetDefault(par.m_initialDelayInKb, par.m_bufferSizeInKb / 2);
+    }
 
     if (par.mfx.RateControlMethod == MFX_RATECONTROL_CQP)
     {
@@ -1742,11 +1730,10 @@ mfxStatus SetDefaults(
     SetDefault(fi.BitDepthChroma, 8);
 #endif // MFX_VERSION >= 1027
 
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+#if (MFX_VERSION >= 1029)
     SetDefault(extPar.NumTileColumns, (extPar.FrameWidth + MAX_TILE_WIDTH - 1) / MAX_TILE_WIDTH);
     SetDefault(extPar.NumTileRows, 1);
-    SetDefault(extPar.DynamicScaling, MFX_CODINGOPTION_OFF);
-#endif // (MFX_VERSION >= MFX_VERSION_NEXT)
+#endif // (MFX_VERSION >= 1029)
 
     // ext buffers
     // TODO: uncomment when buffer mfxExtVP9CodingOption will be added to API

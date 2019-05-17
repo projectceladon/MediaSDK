@@ -1,5 +1,5 @@
 /******************************************************************************\
-Copyright (c) 2005-2018, Intel Corporation
+Copyright (c) 2005-2019, Intel Corporation
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -20,6 +20,12 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #ifndef __TRANSCODE_UTILS_H__
 #define __TRANSCODE_UTILS_H__
 
+#if defined(_WIN32) || defined(_WIN64)
+#include <process.h>
+#pragma warning(disable : 4201)
+#include <d3d9.h>
+#include <dxva2api.h>
+#endif
 
 #include <vector>
 #include <map>
@@ -28,15 +34,6 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 struct D3DAllocatorParams;
 
 #pragma warning(disable: 4127) // constant expression
-
-// Extensions for internal use, normally these macros are blank
-#ifdef MOD_SMT
-#include "extension_macros.h"
-#else
-#define MOD_SMT_CREATE_PIPELINE
-#define MOD_SMT_PRINT_HELP
-#define MOD_SMT_PARSE_INPUT
-#endif
 
 #ifndef MFX_VERSION
 #error MFX_VERSION not defined
@@ -55,42 +52,6 @@ namespace TranscodingSample
 
     bool PrintDllInfo(msdk_char *buf, mfxU32 buf_size, sInputParams* pParams);
 
-    template <class T, bool isSingle>
-    class s_ptr
-    {
-    public:
-        s_ptr():m_ptr(0)
-        {
-        };
-        ~s_ptr()
-        {
-            reset(0);
-        }
-        T* get()
-        {
-            return m_ptr;
-        }
-        T* pop()
-        {
-            T* ptr = m_ptr;
-            m_ptr = 0;
-            return ptr;
-        }
-        void reset(T* ptr)
-        {
-            if (m_ptr)
-            {
-                if (isSingle)
-                    delete m_ptr;
-                else
-                    delete[] m_ptr;
-            }
-            m_ptr = ptr;
-        }
-    protected:
-        T* m_ptr;
-    };
-
     class CmdProcessor
     {
     public:
@@ -104,6 +65,7 @@ namespace TranscodingSample
     protected:
         mfxStatus ParseParFile(FILE* file);
         mfxStatus TokenizeLine(msdk_char *pLine, mfxU32 length);
+        mfxU32    GetStringLength(msdk_char *pTempLine, mfxU32 length);
 
 #if MFX_VERSION >= 1022
         static bool isspace(char a);
@@ -126,6 +88,7 @@ namespace TranscodingSample
         msdk_tstring                                 DumpLogFileName;
         mfxU32                                       m_nTimeout;
         bool                                         bRobustFlag;
+        bool                                         bSoftRobustFlag;
         bool                                         shouldUseGreedyFormula;
         std::vector<msdk_string>                     m_lines;
     private:

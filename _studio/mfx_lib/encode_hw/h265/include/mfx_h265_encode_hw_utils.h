@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -75,7 +75,6 @@ template<class T> inline void Zero(T * first, size_t cnt)     { memset(first, 0,
 template<class T> inline T Abs  (T x)               { return (x > 0 ? x : -x); }
 template<class T> inline T Min  (T x, T y)          { return MFX_MIN(x, y); }
 template<class T> inline T Max  (T x, T y)          { return MFX_MAX(x, y); }
-template<class T> inline T Clip3(T min, T max, T x) { return Min(Max(min, x), max); }
 template<class T> inline T Align(T value, mfxU32 alignment)
 {
     assert((alignment & (alignment - 1)) == 0); // should be 2^n
@@ -1027,6 +1026,7 @@ mfxStatus GetNativeHandleToRawSurface(
     VideoCORE &    core,
     MfxVideoParam const & video,
     Task const &          task,
+    bool                  toSkip,
     mfxHDLPair &          handle);
 
 mfxStatus CopyRawSurfaceToVideoMemory(

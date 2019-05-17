@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,25 @@
 #include "mfx_vp8_dec_decode_common.h"
 
 #define VP8_START_CODE_FOUND(ptr) ((ptr)[0] == 0x9d && (ptr)[1] == 0x01 && (ptr)[2] == 0x2a)
+
+static void SetFrameType(const VP8Defs::vp8_FrameInfo &frame_info, mfxFrameSurface1 &surface_out)
+{
+    auto extFrameInfo = reinterpret_cast<mfxExtDecodedFrameInfo *>(GetExtendedBuffer(surface_out.Data.ExtParam, surface_out.Data.NumExtParam, MFX_EXTBUFF_DECODED_FRAME_INFO));
+    if (extFrameInfo == nullptr)
+        return;
+
+    switch (frame_info.frameType)
+    {
+        case UMC::I_PICTURE:
+            extFrameInfo->FrameType = MFX_FRAMETYPE_I;
+            break;
+        case UMC::P_PICTURE:
+            extFrameInfo->FrameType = MFX_FRAMETYPE_P;
+            break;
+        default:
+            extFrameInfo->FrameType = MFX_FRAMETYPE_UNKNOWN;
+    }
+}
 
 VideoDECODEVP8_HW::VideoDECODEVP8_HW(VideoCORE *p_core, mfxStatus *sts)
     : m_is_initialized(false)
@@ -751,6 +770,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
 
             case 2:
                 gold_indx = altref_indx;
+                break;
 
             case 0:
             default:
@@ -765,6 +785,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
 
             case 2:
                 altref_indx = oldgold_indx;
+                break;
 
             case 0:
             default:
@@ -796,6 +817,8 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
 
     sts = GetOutputSurface(pp_surface_out, p_surface_work, memId);
     MFX_CHECK_STS(sts);
+
+    SetFrameType(m_frame_info, **pp_surface_out);
 
     (*pp_surface_out)->Data.Corrupted = 0;
     (*pp_surface_out)->Data.FrameOrder = m_frameOrder;
@@ -955,7 +978,7 @@ void VideoDECODEVP8_HW::DecodeInitDequantization(MFX_VP8_BoolDecoder &dec)
       else
       {
         qp = m_quantInfo.yacQP + m_frame_info.segmentFeatureData[VP8Defs::VP8_ALT_QUANT][segment_id];
-        vp8_CLIP(qp, 0, VP8_MAX_QP);
+        qp = mfx::clamp(qp, 0, VP8_MAX_QP);
       }
     }
     else
@@ -963,13 +986,13 @@ void VideoDECODEVP8_HW::DecodeInitDequantization(MFX_VP8_BoolDecoder &dec)
 
 
     m_quantInfo.yacQ[segment_id]  = qp;
-    m_quantInfo.ydcQ[segment_id]  = vp8_CLIP_value(qp + m_quantInfo.ydcDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.ydcQ[segment_id]  = mfx::clamp(qp + m_quantInfo.ydcDeltaQP,  0, VP8_MAX_QP);
 
-    m_quantInfo.y2acQ[segment_id] = vp8_CLIP_value(qp + m_quantInfo.y2acDeltaQP, 0, VP8_MAX_QP);
-    m_quantInfo.y2dcQ[segment_id] = vp8_CLIP_value(qp + m_quantInfo.y2dcDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.y2acQ[segment_id] = mfx::clamp(qp + m_quantInfo.y2acDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.y2dcQ[segment_id] = mfx::clamp(qp + m_quantInfo.y2dcDeltaQP, 0, VP8_MAX_QP);
 
-    m_quantInfo.uvacQ[segment_id] = vp8_CLIP_value(qp + m_quantInfo.uvacDeltaQP, 0, VP8_MAX_QP);
-    m_quantInfo.uvdcQ[segment_id] = vp8_CLIP_value(qp + m_quantInfo.uvdcDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.uvacQ[segment_id] = mfx::clamp(qp + m_quantInfo.uvacDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.uvdcQ[segment_id] = mfx::clamp(qp + m_quantInfo.uvdcDeltaQP, 0, VP8_MAX_QP);
 
 
   }
@@ -1284,11 +1307,20 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameHeader(mfxBitstream *in)
         while (++i < 2);
     }
 
+#if !defined(ANDROID) || (MFX_ANDROID_VERSION >= MFX_P)
     // Header info consumed bits
     m_frame_info.entropyDecSize = m_boolDecoder[VP8_FIRST_PARTITION].pos() * 8 - 3*8 - m_boolDecoder[VP8_FIRST_PARTITION].bitcount();
 
     // Subtract completely consumed bytes + current byte. Current is completely consumed if bitcount is 8.
     m_frame_info.firstPartitionSize = first_partition_size - ((m_frame_info.entropyDecSize + 7) >> 3);
+#else
+    // On Android O we use old version of driver and should use special code for 1st partition size computation (for count == 8)
+    // Header info consumed bits
+    m_frame_info.entropyDecSize = m_boolDecoder[VP8_FIRST_PARTITION].pos() * 8 - 16 - m_boolDecoder[VP8_FIRST_PARTITION].bitcount();
+
+    int fix = (m_boolDecoder[VP8_FIRST_PARTITION].bitcount() & 0x7) ? 1 : 0;
+    m_frame_info.firstPartitionSize = m_frame_info.firstPartitionSize - (m_boolDecoder[VP8_FIRST_PARTITION].pos() - 3 + fix);
+#endif
 
     return MFX_ERR_NONE;
 }

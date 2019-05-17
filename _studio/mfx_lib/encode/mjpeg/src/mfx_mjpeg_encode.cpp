@@ -659,10 +659,10 @@ mfxStatus MFXVideoENCODEMJPEG::MJPEGENCODECompleteProc(void *pState, void *pPara
     }
 
     pTask->bs->DataLength += (mfxU32)(pDataOut.GetDataSize());
-    
+
     obj.m_frameCount++;
 
-    if(pTask->bs->DataLength - pTask->m_initialDataLength) 
+    if(pTask->bs->DataLength - pTask->m_initialDataLength)
     {
         obj.m_encodedFrames++;
         obj.m_totalBits += (pTask->bs->DataLength - pTask->m_initialDataLength) * 8;
@@ -1936,11 +1936,11 @@ mfxStatus MFXVideoENCODEMJPEG::EncodeFrameCheck(mfxEncodeCtrl *ctrl, mfxFrameSur
 
     if (MFX_ERR_NONE == sts || MFX_WRN_INCOMPATIBLE_VIDEO_PARAM == sts || MFX_ERR_MORE_BITSTREAM == sts)
     {
+        // EncodeFrameCheck(ctrl, surface, bs, reordered_surface, pInternalParams) processes
+        // !surface case, so here we must have valid pOriginalSurface.
+
         // lock surface. If input surface is opaque core will lock both opaque and associated realSurface
-        if (pOriginalSurface) 
-        {
-            m_core->IncreaseReference(&(pOriginalSurface->Data));
-        }
+        m_core->IncreaseReference(&(pOriginalSurface->Data));
 
         MJPEGEncodeTask *pTask = NULL;
         {
@@ -1956,6 +1956,8 @@ mfxStatus MFXVideoENCODEMJPEG::EncodeFrameCheck(mfxEncodeCtrl *ctrl, mfxFrameSur
         pTask->ctrl         = ctrl;
         pTask->surface      = pOriginalSurface;
         pEntryPoint->pParam = pTask;
+
+        bs->FrameType = MFX_FRAMETYPE_I;
 
         pLastTask = m_freeTasks.front();
 

@@ -1,5 +1,5 @@
 /******************************************************************************\
-Copyright (c) 2005-2018, Intel Corporation
+Copyright (c) 2005-2019, Intel Corporation
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -83,6 +83,7 @@ mfxStatus CSmplYUVReader::Init(std::list<msdk_string> inputs, mfxU32 ColorFormat
         MFX_FOURCC_YV12 != ColorFormat &&
         MFX_FOURCC_I420 != ColorFormat &&
         MFX_FOURCC_YUY2 != ColorFormat &&
+        MFX_FOURCC_UYVY != ColorFormat &&
         MFX_FOURCC_RGB4 != ColorFormat &&
         MFX_FOURCC_BGR4 != ColorFormat &&
         MFX_FOURCC_P010 != ColorFormat &&
@@ -98,7 +99,8 @@ mfxStatus CSmplYUVReader::Init(std::list<msdk_string> inputs, mfxU32 ColorFormat
         return MFX_ERR_UNSUPPORTED;
     }
 
-    if(MFX_FOURCC_P010 == ColorFormat || MFX_FOURCC_P210 == ColorFormat
+    if (   MFX_FOURCC_P010 == ColorFormat
+        || MFX_FOURCC_P210 == ColorFormat
 #if (MFX_VERSION >= 1027)
         || MFX_FOURCC_Y210 == ColorFormat
 #endif
@@ -184,6 +186,7 @@ mfxStatus CSmplYUVReader::LoadNextFrame(mfxFrameSurface1* pSurface)
     mfxU32 nBytesPerPixel = (pInfo.FourCC == MFX_FOURCC_P010 || pInfo.FourCC == MFX_FOURCC_P210 ) ? 2 : 1;
 
     if (   MFX_FOURCC_YUY2 == pInfo.FourCC
+        || MFX_FOURCC_UYVY == pInfo.FourCC
         || MFX_FOURCC_RGB4 == pInfo.FourCC
         || MFX_FOURCC_BGR4 == pInfo.FourCC
         || MFX_FOURCC_AYUV == pInfo.FourCC
@@ -215,8 +218,11 @@ mfxStatus CSmplYUVReader::LoadNextFrame(mfxFrameSurface1* pSurface)
             }
             break;
         case MFX_FOURCC_YUY2:
+        case MFX_FOURCC_UYVY:
             pitch = pData.Pitch;
-            ptr = pData.Y + pInfo.CropX*2 + pInfo.CropY * pData.Pitch;
+            ptr = m_ColorFormat == MFX_FOURCC_YUY2?
+                  pData.Y + pInfo.CropX*2 + pInfo.CropY * pData.Pitch
+                : pData.U + pInfo.CropX   + pInfo.CropY * pData.Pitch;
 
             for(i = 0; i < h; i++)
             {
@@ -427,6 +433,10 @@ mfxStatus CSmplYUVReader::LoadNextFrame(mfxFrameSurface1* pSurface)
         default:
             return MFX_ERR_UNSUPPORTED;
         }
+    }
+    else
+    {
+        return MFX_ERR_UNSUPPORTED;
     }
 
     return MFX_ERR_NONE;
@@ -826,7 +836,7 @@ void CSmplYUVWriter::Close()
                 m_fDestMVC[i] = NULL;
             }
         }
-        delete m_fDestMVC;
+        delete [] m_fDestMVC;
         m_fDestMVC = NULL;
     }
 
@@ -845,7 +855,9 @@ mfxStatus CSmplYUVWriter::WriteNextFrame(mfxFrameSurface1 *pSurface)
     mfxU32 i, h, w;
     mfxU32 vid = pInfo.FrameId.ViewId;
 
-    // Temporary buffer to convert MS-P010 to P010
+    mfxU32 shiftSizeLuma   = 16 - pInfo.BitDepthLuma;
+    mfxU32 shiftSizeChroma = 16 - pInfo.BitDepthChroma;
+    // Temporary buffer to convert MS to no-MS format
     std::vector<mfxU16> tmp;
 
     if (!m_bIsMultiView)
@@ -873,17 +885,21 @@ mfxStatus CSmplYUVWriter::WriteNextFrame(mfxFrameSurface1 *pSurface)
         break;
 #if (MFX_VERSION >= 1027)
     case MFX_FOURCC_Y210:
+#if (MFX_VERSION >= MFX_VERSION_NEXT)
+    case MFX_FOURCC_Y216: // Luma and chroma will be filled below
+#endif
     {
         for (i = 0; i < pInfo.CropH; i++)
         {
             mfxU8* pBuffer = ((mfxU8*)pData.Y) + (pInfo.CropY * pData.Pitch + pInfo.CropX * 4) + i * pData.Pitch;
             if (pInfo.Shift)
             {
+                // Bits will be shifted to the lower position
                 tmp.resize(pInfo.CropW * 2);
 
                 for (int idx = 0; idx < pInfo.CropW*2; idx++)
                 {
-                    tmp[idx] = ((mfxU16*)pBuffer)[idx] >> 6;
+                    tmp[idx] = ((mfxU16*)pBuffer)[idx] >> shiftSizeLuma;
                 }
 
                 MSDK_CHECK_NOT_EQUAL(
@@ -900,13 +916,11 @@ mfxStatus CSmplYUVWriter::WriteNextFrame(mfxFrameSurface1 *pSurface)
         return MFX_ERR_NONE;
     }
     break;
-
-    case MFX_FOURCC_Y410:
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
-    case MFX_FOURCC_Y216:
 #endif
+#if (MFX_VERSION >= 1027)
+    case MFX_FOURCC_Y410: // Luma and chroma will be filled below
     {
-        mfxU8* pBuffer = pInfo.FourCC == MFX_FOURCC_Y410 ? (mfxU8*)pData.Y410 : (mfxU8*)pData.Y;
+        mfxU8* pBuffer = (mfxU8*)pData.Y410;
         for (i = 0; i < pInfo.CropH; i++)
         {
             MSDK_CHECK_NOT_EQUAL(
@@ -925,12 +939,13 @@ mfxStatus CSmplYUVWriter::WriteNextFrame(mfxFrameSurface1 *pSurface)
             mfxU16* shortPtr = (mfxU16*)(pData.Y + (pInfo.CropY * pData.Pitch + pInfo.CropX) + i * pData.Pitch);
             if (pInfo.Shift)
             {
-                // Convert MS-P010 to P010 and write
+                // Convert MS-P*1* to P*1* and write
+                // Bits will be shifted to the lower position
                 tmp.resize(pData.Pitch);
 
                 for (int idx = 0; idx < pInfo.CropW; idx++)
                 {
-                    tmp[idx] = shortPtr[idx] >> 6;
+                    tmp[idx] = shortPtr[idx] >> shiftSizeLuma;
                 }
 
                 MSDK_CHECK_NOT_EQUAL(
@@ -990,19 +1005,20 @@ mfxStatus CSmplYUVWriter::WriteNextFrame(mfxFrameSurface1 *pSurface)
     case MFX_FOURCC_P010:
     case MFX_FOURCC_P210:
     {
-        mfxU32 height = pInfo.FourCC == MFX_FOURCC_P010 ? (mfxU32)pInfo.CropH / 2 : (mfxU32)pInfo.CropH;
+        mfxU32 height = pInfo.FourCC == MFX_FOURCC_P210 ? (mfxU32)pInfo.CropH : (mfxU32)pInfo.CropH / 2;
 
         for (i = 0; i < height; i++)
         {
             mfxU16* shortPtr = (mfxU16*)(pData.UV + (pInfo.CropY * pData.Pitch + pInfo.CropX*2) + i * pData.Pitch);
             if (pInfo.Shift)
             {
-                // Convert MS-P010 to P010 and write
+                // Convert MS-P*1* to P*1* and write
+                // Bits will be shifted to the lower position
                 tmp.resize(pData.Pitch);
 
                 for (int idx = 0; idx < pInfo.CropW; idx++)
                 {
-                    tmp[idx] = shortPtr[idx] >> 6;
+                    tmp[idx] = shortPtr[idx] >> shiftSizeChroma;
                 }
 
                 MSDK_CHECK_NOT_EQUAL(
@@ -1252,6 +1268,17 @@ mfxU16 GetFreeSurfaceIndex(mfxFrameSurface1* pSurfacesPool, mfxU16 nPoolSize)
     return MSDK_INVALID_SURF_IDX;
 }
 
+void FreeSurfacePool(mfxFrameSurface1* pSurfacesPool, mfxU16 nPoolSize)
+{
+    if (pSurfacesPool)
+    {
+        for (mfxU16 i = 0; i < nPoolSize; i++)
+        {
+            pSurfacesPool[i].Data.Locked = 0;
+        }
+    }
+}
+
 mfxU16 GetFreeSurface(mfxFrameSurface1* pSurfacesPool, mfxU16 nPoolSize)
 {
     mfxU32 SleepInterval = 10; // milliseconds
@@ -1449,6 +1476,15 @@ mfxU16 CalculateDefaultBitrate(mfxU32 nCodecId, mfxU32 nTargetUsage, mfxU32 nWid
 
     switch (nCodecId)
     {
+    case MFX_CODEC_HEVC :
+    {
+        fnc.AddPair(0, 0);
+        fnc.AddPair(25344, 225/1.3);
+        fnc.AddPair(101376, 1000/1.3);
+        fnc.AddPair(414720, 4000/1.3);
+        fnc.AddPair(2058240, 5000/1.3);
+        break;
+    }
     case MFX_CODEC_AVC :
         {
             fnc.AddPair(0, 0);
@@ -2464,6 +2500,7 @@ mfxU16 FourCCToChroma(mfxU32 fourCC)
     case MFX_FOURCC_Y210:
 #endif
     case MFX_FOURCC_YUY2:
+    case MFX_FOURCC_UYVY:
         return MFX_CHROMAFORMAT_YUV422;
 #if (MFX_VERSION >= 1027)
     case MFX_FOURCC_Y410:

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -47,8 +47,6 @@
 #define D3DFMT_NV12 (D3DFORMAT)(MFX_MAKEFOURCC('N', 'V', '1', '2'))
 #define D3DDDIFMT_NV12 (D3DDDIFORMAT)(MFX_MAKEFOURCC('N', 'V', '1', '2'))
 #define D3DDDIFMT_YU12 (D3DDDIFORMAT)(MFX_MAKEFOURCC('Y', 'U', '1', '2'))
-
-#define MFX_CHECK_WITH_ASSERT(EXPR, ERR) { assert(EXPR); MFX_CHECK(EXPR, ERR); }
 
 // this guid is used to identify that device creation is performed during Query or QueryIOSurf call
 static const GUID MSDK_Private_Guid_Encode_AVC_Query =
@@ -683,14 +681,6 @@ namespace MfxHwH264Encode
         mfxVideoParam const & out,
         mfxU32 (&mbPerSec)[16],
         const mfxVideoParam * in);
-
-    mfxStatus QueryInputTilingSupport(
-        VideoCORE* core,
-        mfxVideoParam const & par,
-        mfxU32 &inputTiling,
-        GUID guid,
-        mfxU32 width = 1920,
-        mfxU32 height = 1088);
 
     mfxStatus QueryGuid(
         VideoCORE* core,
@@ -1420,6 +1410,7 @@ namespace MfxHwH264Encode
         bool                            m_emulPrev;                 // insert emualtion prevention bytes when possible (sps/pps/sei/aud)
         bool                            m_isMVC;
         bool                            m_longStartCodes;
+        bool                            m_isLowPower;
 
         ENCODE_PACKEDHEADER_DATA                m_packedAud;
         std::vector<ENCODE_PACKEDHEADER_DATA>   m_packedSps;

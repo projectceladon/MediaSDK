@@ -19,35 +19,9 @@
 # SOFTWARE.
 
 message( STATUS "Global Configuration of Targets" )
-if(__TARGET_PLATFORM)
-    add_definitions( -DLINUX_TARGET_PLATFORM -DLINUX_TARGET_PLATFORM_${__TARGET_PLATFORM} )
-endif()
-#
+
 set( T_ARCH "sse4.2" )
-#if( __TARGET_PLATFORM STREQUAL "BDW" )
-#    set( T_ARCH "avx2" )
-#endif()
 message( STATUS "Target Architecture to compile: ${T_ARCH}" )
-#
-if( __TARGET_PLATFORM STREQUAL "BXTMIN" )
-    set(MFX_LIB_ONLY TRUE)
-    message( STATUS "!!! BXTMIN target MFX_LIB_ONLY !!!" )
-endif()
-
-# HEVC plugins disabled by default
-set( ENABLE_HEVC FALSE )
-set( ENABLE_HEVC_FEI FALSE )
-
-if( MFX_LIB_ONLY )
-    set( ENABLE_HEVC_FEI FALSE )
-    message("!!! NO HEVC PLUGINS - MFX LIB ONLY BUILD !!!")
-else()
-    if ((CMAKE_C_COMPILER MATCHES icc) OR ENABLE_HEVC_ON_GCC )
-       set(ENABLE_HEVC TRUE)
-       set(ENABLE_HEVC_FEI TRUE)
-       message( STATUS "  Enabling HEVC plugins build!")
-    endif()
-endif()
 
 append("-std=c++11" CMAKE_CXX_FLAGS)
 
@@ -75,29 +49,26 @@ if (ENABLE_STAT)
 endif()
 
 option( MFX_ENABLE_KERNELS "Build with advanced media kernels support?" ON )
-option( MFX_ENABLE_SW_FALLBACK "Enabled software fallback for codecs?" ON )
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  option( MFX_ENABLE_SW_FALLBACK "Enabled software fallback for codecs?" ON )
+else ()
+  # disable SW fallback on ia32 by default (no ipp p8 yet)
+  option( MFX_ENABLE_SW_FALLBACK "Enabled software fallback for codecs?" OFF )
+endif()
+
 
 cmake_dependent_option(
   BUILD_KERNELS "Rebuild kernels (shaders)?" OFF
   "MFX_ENABLE_KERNELS" OFF)
 
 if (BUILD_KERNELS)
-  if(NOT DEFINED ENV{CMC_SEARCH_PATH})
-    message(FATAL_ERROR "No CMC search path provided (CMC_SEARCH_PATH)")
-  endif()
-  file(GLOB_RECURSE CMC $ENV{CMC_SEARCH_PATH}/*/cmc )
+  find_program(CMC cmc)
   if(NOT CMC)
     message(FATAL_ERROR "Failed to find cm compiler")
   endif()
-  file(GLOB_RECURSE CMC_INCLUDE $ENV{CMC_SEARCH_PATH}/*/cm.h )
-  if(NOT CMC_INCLUDE)
-    message(FATAL_ERROR "Failed to find cm headers")
-  endif()
-  get_filename_component(CMC_INCLUDE ${CMC_INCLUDE} DIRECTORY)
-  set(CMC_INCLUDE "${CMC_INCLUDE}/..") # jumping out of 'cm' directory
-  file(GLOB_RECURSE GENX_IR $ENV{CMC_SEARCH_PATH}/*/GenX_IR )
+  find_program(GENX_IR GenX_IR)
   if(NOT GENX_IR)
-    message(FATAL_ERROR "Failed to find GenX_IR compiler")
+    message(FATAL_ERROR "Failed to find GenX_IR compiler (part of IGC)")
   endif()
 endif()
 
@@ -114,6 +85,7 @@ option( MFX_ENABLE_USER_VPP "Enabled user VPP plugins?" ON)
 
 option( MFX_ENABLE_VP8_VIDEO_DECODE "Enabled VP8 decoder?" ON)
 option( MFX_ENABLE_VP9_VIDEO_DECODE "Enabled VP9 decoder?" ON)
+option( MFX_ENABLE_H264_VIDEO_DECODE "Enabled AVC decoder?" ON)
 option( MFX_ENABLE_H265_VIDEO_DECODE "Enabled HEVC decoder?" ON)
 option( MFX_ENABLE_MPEG2_VIDEO_DECODE "Enabled MPEG2 decoder?" ON)
 option( MFX_ENABLE_MPEG2_VIDEO_ENCODE "Enabled MPEG2 encoder?" ON)

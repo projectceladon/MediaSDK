@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 Intel Corporation
+// Copyright (c) 2017-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -316,6 +316,9 @@ struct ViewItem
     H264DecoderFrame *pCurFrame;
 
     double localFrameTime;
+
+    // SPS.VUI.(bitstream_restriction_flag == 1).max_num_reorder_frames
+    uint32_t maxNumReorderFrames;
 };
 
 typedef std::list<ViewItem> ViewList;
@@ -535,8 +538,6 @@ public:
     virtual H264DecoderFrame *GetFrameToDisplayInternal(bool force);
 
     Status GetUserData(MediaData * pUD);
-
-    bool IsWantToShowFrame(bool force = false);
 
     H264DBPList *GetDPBList(uint32_t viewId, int32_t dIdRev)
     {
@@ -774,6 +775,8 @@ inline int32_t CalculateDPBSize(uint8_t & level_idc, int32_t width, int32_t heig
         case H264VideoDecoderParams::H264_LEVEL_52:
             level_idc = H264VideoDecoderParams::H264_LEVEL_MAX;
             break;
+        default:
+            throw h264_exception(UMC_ERR_FAILED);
         }
     }
 
@@ -799,15 +802,10 @@ inline H264DBPList *GetDPB(ViewList &views, int32_t viewId, int32_t dIdRev = 0)
 
 inline uint32_t GetVOIdx(const UMC_H264_DECODER::H264SeqParamSetMVCExtension *pSeqParamSetMvc, uint32_t viewId)
 {
-    for (uint32_t i = 0; i <= pSeqParamSetMvc->num_views_minus1; ++i)
-    {
-        if (pSeqParamSetMvc->viewInfo[i].view_id == viewId)
-        {
-            return i;
-        }
-    }
+    auto it = std::find_if(pSeqParamSetMvc->viewInfo.begin(), pSeqParamSetMvc->viewInfo.end(),
+                           [viewId](const UMC_H264_DECODER::H264ViewRefInfo & item){ return item.view_id == viewId; });
 
-    return 0;
+    return (pSeqParamSetMvc->viewInfo.end() != it) ? (it - pSeqParamSetMvc->viewInfo.begin()) : 0;
 
 } // uint32_t GetVOIdx(const H264SeqParamSetMVCExtension *pSeqParamSetMvc, uint32_t viewId)
 

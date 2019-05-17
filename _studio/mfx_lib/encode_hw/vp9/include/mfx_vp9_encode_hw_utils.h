@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,8 +33,6 @@
 
 namespace MfxHwVP9Encode
 {
-
-#define MFX_CHECK_WITH_ASSERT(EXPR, ERR) { assert(EXPR); MFX_CHECK(EXPR, ERR); }
 
 constexpr auto DPB_SIZE = 8; // DPB size by VP9 spec
 constexpr auto DPB_SIZE_REAL = 3; // DPB size really used by encoder
@@ -253,8 +251,6 @@ enum // identifies memory type at encoder input w/o any details
         return MFX_ERR_NONE;
     }
 
-#define MFX_CHECK_WITH_ASSERT(EXPR, ERR) { assert(EXPR); MFX_CHECK(EXPR, ERR); }
-
     template<class T> inline void Zero(T & obj)                { obj = T(); }
     template<class T, size_t N> inline void Zero(T (&obj)[N])  { std::fill_n(obj, N, T()); }
     template<class T> inline void Zero(std::vector<T> & vec)   { vec.assign(vec.size(), T()); }
@@ -439,6 +435,9 @@ template <typename T> mfxStatus RemoveExtBuffer(T & par, mfxU32 id)
     public:
         MfxFrameAllocResponse();
 
+        MfxFrameAllocResponse(MfxFrameAllocResponse const &) = delete;
+        MfxFrameAllocResponse & operator =(MfxFrameAllocResponse const &) = delete;
+
         ~MfxFrameAllocResponse();
 
         mfxStatus Alloc(
@@ -450,8 +449,6 @@ template <typename T> mfxStatus RemoveExtBuffer(T & par, mfxU32 id)
         mfxFrameInfo               m_info;
 
     private:
-        MfxFrameAllocResponse(MfxFrameAllocResponse const &);
-
         VideoCORE* m_pCore;
         mfxU16      m_numFrameActualReturnedByAllocFrames;
 

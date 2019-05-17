@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1014,6 +1014,7 @@ mfxStatus VideoVPPBase::Query(VideoCORE * core, mfxVideoParam *in, mfxVideoParam
             out->vpp.Out.FourCC != MFX_FOURCC_NV12 &&
             out->vpp.Out.FourCC != MFX_FOURCC_YUY2 &&
             out->vpp.Out.FourCC != MFX_FOURCC_RGB4 &&
+            out->vpp.Out.FourCC != MFX_FOURCC_UYVY &&
 #ifdef MFX_ENABLE_RGBP
             out->vpp.Out.FourCC != MFX_FOURCC_RGBP &&
 #endif
@@ -1057,6 +1058,7 @@ mfxStatus VideoVPPBase::Query(VideoCORE * core, mfxVideoParam *in, mfxVideoParam
         {
             if ( (out->vpp.Out.Width & 15 ) != 0 )
             {
+                out->vpp.Out.Width = 0;
                 mfxSts = MFX_ERR_UNSUPPORTED;
             }
         }

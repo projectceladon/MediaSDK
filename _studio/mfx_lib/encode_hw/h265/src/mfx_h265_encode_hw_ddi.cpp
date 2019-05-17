@@ -41,7 +41,7 @@ GUID GetGUID(MfxVideoParam const & par)
     if (par.mfx.CodecProfile == MFX_PROFILE_HEVC_MAIN10 || par.m_ext.CO3.TargetBitDepthLuma == 10)
         bdId = 1;
 
-    cfId = Clip3<mfxU16>(MFX_CHROMAFORMAT_YUV420, MFX_CHROMAFORMAT_YUV444, par.m_ext.CO3.TargetChromaFormatPlus1 - 1) - MFX_CHROMAFORMAT_YUV420;
+    cfId = mfx::clamp<mfxU16>(par.m_ext.CO3.TargetChromaFormatPlus1 - 1, MFX_CHROMAFORMAT_YUV420, MFX_CHROMAFORMAT_YUV444) - MFX_CHROMAFORMAT_YUV420;
 
     if (par.m_platform && par.m_platform < MFX_HW_ICL)
         cfId = 0; // platforms below ICL do not support Main422/Main444 profile, using Main instead.
@@ -134,7 +134,7 @@ mfxStatus HardcodeCaps(ENCODE_CAPS_HEVC& caps, VideoCORE* core)
     return sts;
 }
 
-mfxStatus QueryHwCaps(VideoCORE* core, GUID guid, ENCODE_CAPS_HEVC & caps)
+mfxStatus QueryHwCaps(VideoCORE* core, GUID guid, ENCODE_CAPS_HEVC & caps, mfxU32 width, mfxU32 height)
 {
     std::unique_ptr<DriverEncoder> ddi;
 
@@ -142,7 +142,7 @@ mfxStatus QueryHwCaps(VideoCORE* core, GUID guid, ENCODE_CAPS_HEVC & caps)
     ddi.reset(CreatePlatformH265Encoder(core));
     MFX_CHECK(ddi.get(), MFX_ERR_UNSUPPORTED);
 
-    mfxStatus sts = ddi.get()->CreateAuxilliaryDevice(core, guid, 1920, 1088);
+    mfxStatus sts = ddi.get()->CreateAuxilliaryDevice(core, guid, width, height);
     MFX_CHECK_STS(sts);
 
     sts = ddi.get()->QueryEncodeCaps(caps);

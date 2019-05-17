@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -147,8 +147,8 @@ void SetReconInfo(VP9MfxVideoParam const & par, mfxFrameInfo& fi)
     mfxU16 format = opt3.TargetChromaFormatPlus1 - 1;
     mfxU16 depth = opt3.TargetBitDepthLuma;
 
-    fi.Width = AlignValue(fi.Width, 64);
-    fi.Height = AlignValue(fi.Height, 64);
+    fi.Width  = mfx::align2_value(fi.Width,  64);
+    fi.Height = mfx::align2_value(fi.Height, 64);
 
     if (format == MFX_CHROMAFORMAT_YUV444 && depth == BITDEPTH_10)
     {
@@ -329,7 +329,7 @@ mfxStatus MFXVideoENCODEVP9_HW::Init(mfxVideoParam *par)
     sts = m_ddi->Register(m_segmentMaps.GetFrameAllocReponse(), D3DDDIFMT_INTELENCODE_MBSEGMENTMAP);
     MFX_CHECK_STS(sts);
 
-    mfxU16 blockSize = MapIdToBlockSize(MFX_VP9_SEGMENT_ID_BLOCK_SIZE_32x32);
+    mfxU16 blockSize = MapIdToBlockSize(MFX_VP9_SEGMENT_ID_BLOCK_SIZE_64x64);
     // allocate enough space for segmentation map for lowest supported segment block size and highest supported resolution
     mfxU16 wInBlocks = (static_cast<mfxU16>(caps.MaxPicWidth) + blockSize - 1) / blockSize;
     mfxU16 hInBlocks = (static_cast<mfxU16>(caps.MaxPicHeight) + blockSize - 1) / blockSize;
@@ -468,14 +468,25 @@ mfxStatus MFXVideoENCODEVP9_HW::Reset(mfxVideoParam *par)
         {
             return MFX_ERR_INVALID_VIDEO_PARAM;
         }
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
+
+#if (MFX_VERSION >= 1029)
+        // dynamic scaling and tiles don't work together
         if ((extParAfter.FrameWidth != extParBefore.FrameWidth ||
             extParAfter.FrameHeight != extParBefore.FrameHeight) &&
-            extParAfter.DynamicScaling != MFX_CODINGOPTION_ON)
+            (extParAfter.NumTileRows > 1 || extParAfter.NumTileColumns > 1))
         {
             return MFX_ERR_INVALID_VIDEO_PARAM;
         }
 #endif
+
+        // dynamic scaling and segmentation don't work together
+        const mfxExtVP9Segmentation& seg = GetExtBufferRef(parAfterReset);
+        if ((extParAfter.FrameWidth != extParBefore.FrameWidth ||
+            extParAfter.FrameHeight != extParBefore.FrameHeight) &&
+            seg.NumSegments > 1)
+        {
+            return MFX_ERR_INVALID_VIDEO_PARAM;
+        }
     }
 
     sts = m_ddi->Reset(m_video);

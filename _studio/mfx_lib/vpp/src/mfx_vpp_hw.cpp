@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -2962,6 +2962,28 @@ mfxStatus VideoVPPHW::Close()
 } // mfxStatus VideoVPPHW::Close()
 
 
+bool VideoVPPHW::UseCopyPassThrough(const DdiTask *pTask) const
+{
+    if (!m_config.m_bCopyPassThroughEnable
+        || IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf))
+    {
+        return false;
+    }
+
+    if (m_pCore->GetVAType() != MFX_HW_VAAPI || m_ioMode != D3D_TO_D3D)
+    {
+        return true;
+    }
+
+    // Under VAAPI for D3D_TO_D3D either CM copy or VPP pipeline are preferred by
+    // performance reasons. So, before enabling CopyPassThrough for a task we check
+    // for CM availability to do fallback to VPP if there is no CM.
+    // This can't be done in ConfigureExecuteParams() because CmCopy status is set later.
+    const VAAPIVideoCORE *vaapiCore = dynamic_cast<VAAPIVideoCORE*>(m_pCore);
+    MFX_CHECK_WITH_ASSERT(vaapiCore, false);
+    return vaapiCore->CmCopy();
+}
+
 mfxStatus VideoVPPHW::VppFrameCheck(
                                     mfxFrameSurface1 *input,
                                     mfxFrameSurface1 *output,
@@ -3115,9 +3137,11 @@ mfxStatus VideoVPPHW::VppFrameCheck(
 #endif
     MFX_CHECK_STS(sts);
 
+    bool useCopyPassThrough = UseCopyPassThrough(pTask);
+
     if (VPP_SYNC_WORKLOAD == m_workloadMode)
     {
-        pTask->bRunTimeCopyPassThrough = (true == m_config.m_bCopyPassThroughEnable && false == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf));
+        pTask->bRunTimeCopyPassThrough = useCopyPassThrough;
 
         // submit task
         SyncTaskSubmission(pTask);
@@ -3136,8 +3160,7 @@ mfxStatus VideoVPPHW::VppFrameCheck(
     }
     else
     {
-        if (false == m_config.m_bCopyPassThroughEnable ||
-            (true == m_config.m_bCopyPassThroughEnable && true == IsRoiDifferent(pTask->input.pSurf, pTask->output.pSurf)))
+        if (!useCopyPassThrough)
         {
             pTask->bRunTimeCopyPassThrough = false;
 
@@ -5095,9 +5118,9 @@ mfxU64 make_back_color_yuv(mfxU16 bit_depth, mfxU16 Y, mfxU16 U, mfxU16 V)
 
     return
         ((mfxU64) max_val << 48) |
-        ((mfxU64) VPP_RANGE_CLIP(Y, (16 << shift), (235 << shift))     << 32) |
-        ((mfxU64) VPP_RANGE_CLIP(U, (16 << shift), (240 << shift))     << 16) |
-        ((mfxU64) VPP_RANGE_CLIP(V, (16 << shift), (240 << shift))     <<  0);
+        ((mfxU64) mfx::clamp<mfxI32>(Y, (16 << shift), (235 << shift)) << 32) |
+        ((mfxU64) mfx::clamp<mfxI32>(U, (16 << shift), (240 << shift)) << 16) |
+        ((mfxU64) mfx::clamp<mfxI32>(V, (16 << shift), (240 << shift)) <<  0);
 }
 
 inline
@@ -5109,9 +5132,9 @@ mfxU64 make_back_color_argb(mfxU16 bit_depth, mfxU16 R, mfxU16 G, mfxU16 B)
     mfxU64 const max_val = (1 << bit_depth) - 1;
 
     return ((mfxU64) max_val << 48) |
-           ((mfxU64) VPP_RANGE_CLIP(R, 0, max_val) << 32) |
-           ((mfxU64) VPP_RANGE_CLIP(G, 0, max_val) << 16) |
-           ((mfxU64) VPP_RANGE_CLIP(B, 0, max_val) << 0);
+           (mfx::clamp<mfxU64>(R, 0, max_val) << 32) |
+           (mfx::clamp<mfxU64>(G, 0, max_val) << 16) |
+           (mfx::clamp<mfxU64>(B, 0, max_val) << 0);
 }
 
 inline
@@ -5151,6 +5174,9 @@ mfxU64 get_background_color(const mfxVideoParam & videoParam)
                 case MFX_FOURCC_NV16:
                 case MFX_FOURCC_YUY2:
                 case MFX_FOURCC_AYUV:
+#if defined(MFX_VA_LINUX)
+                case MFX_FOURCC_UYVY:
+#endif
                     return make_back_color_yuv(8, extComp->Y, extComp->U, extComp->V);
                 case MFX_FOURCC_P010:
 #if (MFX_VERSION >= 1027)
@@ -5162,6 +5188,8 @@ mfxU64 get_background_color(const mfxVideoParam & videoParam)
                 case MFX_FOURCC_RGB4:
                 case MFX_FOURCC_BGR4:
                     return make_back_color_argb(8, extComp->R, extComp->G, extComp->B);
+                case MFX_FOURCC_A2RGB10:
+                    return make_back_color_argb(10, extComp->R, extComp->G, extComp->B);
                 default:
                     break;
             }
@@ -5175,6 +5203,9 @@ mfxU64 get_background_color(const mfxVideoParam & videoParam)
         case MFX_FOURCC_NV16:
         case MFX_FOURCC_YUY2:
         case MFX_FOURCC_AYUV:
+#if defined(MFX_VA_LINUX)
+        case MFX_FOURCC_UYVY:
+#endif
             return make_def_back_color_yuv(8);
         case MFX_FOURCC_P010:
 #if (MFX_VERSION >= 1027)
@@ -5185,7 +5216,12 @@ mfxU64 get_background_color(const mfxVideoParam & videoParam)
             return make_def_back_color_yuv(10);
         case MFX_FOURCC_RGB4:
         case MFX_FOURCC_BGR4:
+#ifdef MFX_ENABLE_RGBP
+        case MFX_FOURCC_RGBP:
+#endif
             return make_def_back_color_argb(8);
+        case MFX_FOURCC_A2RGB10:
+            return make_def_back_color_argb(10);
         default:
             break;
     }
@@ -6098,7 +6134,6 @@ mfxStatus ConfigureExecuteParams(
         executeParams.bSceneDetectionEnable = false;
     }
 
-#if defined(WIN64) || defined (WIN32)
     if ( (0 == memcmp(&videoParam.vpp.In, &videoParam.vpp.Out, sizeof(mfxFrameInfo))) &&
          executeParams.IsDoNothing() )
     {
@@ -6109,7 +6144,6 @@ mfxStatus ConfigureExecuteParams(
         config.m_bCopyPassThroughEnable = false;// after Reset() parameters may be changed,
                                             // flag should be disabled
     }
-#endif//m_bCopyPassThroughEnable == false for another OS
 
     if (inDNRatio == outDNRatio && !executeParams.bVarianceEnable && !executeParams.bComposite &&
             !(config.m_extConfig.mode == IS_REFERENCES) )

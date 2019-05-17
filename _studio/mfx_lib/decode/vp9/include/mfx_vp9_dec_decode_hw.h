@@ -37,6 +37,8 @@
 
 namespace UMC_VP9_DECODER { class Packer; }
 
+class FrameStorage;
+
 class VideoDECODEVP9_HW : public VideoDECODE, public MfxCriticalErrorHandler
 {
 public:
@@ -55,7 +57,7 @@ public:
     virtual mfxStatus GetVideoParam(mfxVideoParam *pPar);
     virtual mfxStatus GetDecodeStat(mfxDecodeStat *pStat);
 
-    virtual mfxStatus DecodeHeader(VideoCORE * core, mfxBitstream *bs, mfxVideoParam *params);
+    static mfxStatus DecodeHeader(VideoCORE * core, mfxBitstream *bs, mfxVideoParam *params);
     virtual mfxStatus DecodeFrameCheck(mfxBitstream *bs, mfxFrameSurface1 *pSurfaceWork, mfxFrameSurface1 **ppSurfaceOut, MFX_ENTRY_POINT *pEntryPoint);
 
     virtual mfxStatus GetUserData(mfxU8 *pUserData, mfxU32 *pSize, mfxU64 *pTimeStamp);
@@ -66,13 +68,12 @@ protected:
     void CalculateTimeSteps(mfxFrameSurface1 *);
     static mfxStatus QueryIOSurfInternal(eMFXPlatform, mfxVideoParam *, mfxFrameAllocRequest *);
 
-    mfxStatus UpdateRefFrames(const mfxU8 refreshFrameFlags, UMC_VP9_DECODER::VP9DecoderFrame & info);
+    mfxStatus UpdateRefFrames();
+    mfxStatus CleanRefList();
 
     mfxStatus DecodeSuperFrame(mfxBitstream *in, UMC_VP9_DECODER::VP9DecoderFrame & info);
     mfxStatus DecodeFrameHeader(mfxBitstream *in, UMC_VP9_DECODER::VP9DecoderFrame & info);
     mfxStatus PackHeaders(mfxBitstream *bs, UMC_VP9_DECODER::VP9DecoderFrame const & info);
-
-    void UpdateVideoParam(mfxVideoParam *par, UMC_VP9_DECODER::VP9DecoderFrame const & frameInfo);
 
     mfxFrameSurface1 * GetOriginalSurface(mfxFrameSurface1 *);
     mfxStatus GetOutputSurface(mfxFrameSurface1 **, mfxFrameSurface1 *, UMC::FrameMemID);
@@ -98,6 +99,7 @@ private:
     std::unique_ptr<mfx_UMC_FrameAllocator> m_FrameAllocator;
 
     std::unique_ptr<UMC_VP9_DECODER::Packer>  m_Packer;
+    std::unique_ptr<FrameStorage> m_framesStorage;
 
     mfxFrameAllocRequest     m_request;
     mfxFrameAllocResponse    m_response;
@@ -108,6 +110,8 @@ private:
     friend mfxStatus VP9CompleteProc(void *p_state, void *pp_param, mfxStatus);
 
     void ResetFrameInfo();
+
+    mfxStatus PrepareInternalSurface(UMC::FrameMemID &mid, mfxFrameInfo &info);
 
     struct VP9DECODERoutineData
     {
@@ -138,9 +142,6 @@ private:
     mfxBitstream m_bs;
 
     mfxI32 m_baseQIndex;
-    mfxI32 m_y_dc_delta_q;
-    mfxI32 m_uv_dc_delta_q;
-    mfxI32 m_uv_ac_delta_q;
 };
 
 #endif // _MFX_VP9_DECODE_HW_H_
