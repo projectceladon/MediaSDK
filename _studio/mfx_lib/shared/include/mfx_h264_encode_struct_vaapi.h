@@ -230,7 +230,7 @@ typedef struct tagENCODE_CAPS
             UINT    NoFrameCropping             : 1;
             UINT    FrameLevelRateCtrl          : 1;
             UINT    HeaderInsertion             : 1;
-            UINT    RawReconRefToggle           : 1; // doesn't support change reference frame (original vs. recon) at a per frame basis.
+            UINT    RawReconRefToggle           : 1; // doesn't shpport change reference frame (original vs. recon) at a per frame basis.
             UINT    NoPAFF                      : 1; // doesn't support change frame/field coding at per frame basis.
             UINT    NoInterlacedField           : 1;
             UINT    BRCReset                    : 1;
@@ -306,9 +306,7 @@ typedef struct tagENCODE_CAPS
             UINT    DDRStreamingBufferSupport     : 1;
             UINT    LowDelayBRCSupport            : 1; // eFrameSizeTolerance_ExtremelyLow (Low delay) supported
             UINT    AVBRBRCSupport                : 1;
-            UINT    CBRSupport                    : 1;
-            UINT    VBRSupport                    : 1;
-            UINT                                  : 9;
+            UINT                            : 11;
         };
         UINT      CodingLimits2;
     };
@@ -316,6 +314,15 @@ typedef struct tagENCODE_CAPS
     UCHAR    MaxNum_WeightedPredL1;
 } ENCODE_CAPS;
 
+// We cannot modify ENCODE_CAPS structure, but need to add new features
+struct MFX_ENCODE_CAPS
+{
+    ENCODE_CAPS ddi_caps;
+    //bitrate control capabilities provided by MSDK
+    bool CQPSupport;
+    bool CBRSupport;
+    bool VBRSupport;
+};
 
 // this enumeration is used to define the block size for intra prediction. they
 // are used as bit flags to control what block size will be checked for intra
@@ -978,6 +985,6 @@ enum
     ENCODE_QUERY_STATUS_ID                  = 0x121
 };
 
-#endif /* MFX_VA_LINUX */
 #endif /* __MFX_H264_ENCODE_STRUCT_VAAPI__H */
+#endif /* MFX_VA_LINUX */
 /* EOF */
