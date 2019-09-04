@@ -1005,7 +1005,7 @@ mfxStatus GetPipelineList(
         return MFX_ERR_NONE;
     }
 
-    /* VPP natively supports 10bit format w/o shift. If input is shifted,
+    /* VPP natively supports P010 and P210 formats w/o shift. If input is shifted,
      * need get it back to normal position.
      */
     if ( ( MFX_FOURCC_P010 == srcFrameInfo->FourCC || MFX_FOURCC_P210 == srcFrameInfo->FourCC)
@@ -1015,7 +1015,7 @@ mfxStatus GetPipelineList(
     }
 
     /*
-     * VPP produces 10bit data w/o shift. If output is requested to be shifted, need to do so
+     * VPP produces P010 and P210 formats w/o shift. If output is requested to be shifted, need to do so
      */
     if ( ( MFX_FOURCC_P010 == dstFrameInfo->FourCC || MFX_FOURCC_P210 == dstFrameInfo->FourCC)
         && dstFrameInfo->Shift )
@@ -1311,6 +1311,7 @@ mfxU32 GetFilterIndex( mfxU32* pList, mfxU32 len, mfxU32 filterName )
 /* check each field of FrameInfo excluding PicStruct */
 mfxStatus CheckFrameInfo(mfxFrameInfo* info, mfxU32 request, eMFXHWType platform)
 {
+    (void)platform;
     mfxStatus mfxSts = MFX_ERR_NONE;
 
     /* FourCC */
@@ -1325,10 +1326,10 @@ mfxStatus CheckFrameInfo(mfxFrameInfo* info, mfxU32 request, eMFXHWType platform
         case MFX_FOURCC_P210:
         case MFX_FOURCC_NV16:
         case MFX_FOURCC_YUY2:
-            break;
         case MFX_FOURCC_AYUV:
-#if !defined(_WIN32) && !defined(_WIN64)
-            MFX_CHECK(platform >= MFX_HW_ICL, MFX_ERR_INVALID_VIDEO_PARAM);
+#if defined(MFX_VA_LINUX)
+        // UYVY is supported on Linux only
+        case MFX_FOURCC_UYVY:
 #endif
             break;
 #if (MFX_VERSION >= 1027)
@@ -1344,10 +1345,6 @@ mfxStatus CheckFrameInfo(mfxFrameInfo* info, mfxU32 request, eMFXHWType platform
         case MFX_FOURCC_YUV422H:
         case MFX_FOURCC_YUV422V:
         case MFX_FOURCC_YUV444:
-#if defined(MFX_VA_LINUX)
-        // UYVY is supported on Linux only
-        case MFX_FOURCC_UYVY:
-#endif
             if (VPP_OUT == request)
                 return MFX_ERR_INVALID_VIDEO_PARAM;
             break;

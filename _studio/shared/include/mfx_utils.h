@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 Intel Corporation
+// Copyright (c) 2017-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,11 +23,17 @@
 
 #include "mfx_config.h"
 
+#include "mfxstructures.h"
+
 #include "umc_structures.h"
 #include "mfx_trace.h"
 #include "mfx_timing.h"
 
 #include <cassert>
+
+#if defined(MFX_VA_LINUX)
+#include <va/va.h>
+#endif
 
 #ifndef MFX_DEBUG_TRACE
 #define MFX_STS_TRACE(sts) sts
@@ -60,6 +66,8 @@ static inline T mfx_print_err(T sts, const char *file, int line, const char *fun
 
 #define MFX_CHECK_UMC_ALLOC(err) if (err != true) {return MFX_ERR_MEMORY_ALLOC;}
 #define MFX_CHECK_EXBUF_INDEX(index) if (index == -1) {return MFX_ERR_MEMORY_ALLOC;}
+
+#define MFX_CHECK_WITH_ASSERT(EXPR, ERR) {assert(EXPR); MFX_CHECK(EXPR,ERR); }
 
 static const mfxU32 MFX_TIME_STAMP_FREQUENCY = 90000; // will go to mfxdefs.h
 static const mfxU64 MFX_TIME_STAMP_INVALID = (mfxU64)-1; // will go to mfxdefs.h
@@ -109,26 +117,61 @@ bool LumaIsNull(const mfxFrameSurface1 * surf)
         return !surf->Data.Y;
 }
 
-#define MFX_ZERO_MEM(_X)    memset(&_X, 0, sizeof(_X))
-
-#ifndef SAFE_DELETE
-#define SAFE_DELETE(PTR)    { if (PTR) { delete PTR; PTR = NULL; } }
-#endif
 #ifndef SAFE_RELEASE
 #define SAFE_RELEASE(PTR)   { if (PTR) { PTR->Release(); PTR = NULL; } }
 #endif
 
-/// Align integral T @value to power of two @alignment
-template<class T> inline T AlignValue(T value, mfxU32 alignment)
+#ifdef MFX_ENABLE_CPLIB
+    #define IS_PROTECTION_CENC(val) (MFX_PROTECTION_CENC_WV_CLASSIC == (val) || MFX_PROTECTION_CENC_WV_GOOGLE_DASH == (val))
+#else
+    #define IS_PROTECTION_CENC(val) (false)
+#endif
+
+#define IS_PROTECTION_ANY(val) IS_PROTECTION_CENC(val)
+
+namespace mfx
 {
-    assert((alignment & (alignment - 1)) == 0); // should be 2^n
-    return static_cast<T>((value + alignment - 1) & ~(alignment - 1));
+// TODO: switch to std::clamp when C++17 support will be enabled
+
+// Clip value v to range [lo, hi]
+template<class T>
+constexpr const T& clamp( const T& v, const T& lo, const T& hi )
+{
+    return std::min(hi, std::max(v, lo));
 }
 
+// Comp is comparison function object with meaning of 'less' operator (i.e. std::less<> or operator<)
+template<class T, class Compare>
+constexpr const T& clamp( const T& v, const T& lo, const T& hi, Compare comp )
+{
+    return comp(v, lo) ? lo : comp(hi, v) ? hi : v;
+}
 
-//#undef  SUCCEEDED
-//#define SUCCEEDED(hr)   (MFX_STS_TRACE(hr) >= 0)
-//#undef  FAILED
-//#define FAILED(hr)      (MFX_STS_TRACE(hr) < 0)
+// Aligns value to next power of two
+template<class T> inline
+T align2_value(T value, size_t alignment = 16)
+{
+    assert((alignment & (alignment - 1)) == 0);
+    return static_cast<T> ((value + (alignment - 1)) & ~(alignment - 1));
+}
+}
+
+#define MFX_COPY_FIELD(Field)       buf_dst.Field = buf_src.Field
+#define MFX_COPY_ARRAY_FIELD(Array) std::copy(std::begin(buf_src.Array), std::end(buf_src.Array), std::begin(buf_dst.Array))
+
+#if defined(MFX_VA_LINUX)
+inline mfxStatus CheckAndDestroyVAbuffer(VADisplay display, VABufferID & buffer_id)
+{
+    if (buffer_id != VA_INVALID_ID)
+    {
+        VAStatus vaSts = vaDestroyBuffer(display, buffer_id);
+        MFX_CHECK_WITH_ASSERT(VA_STATUS_SUCCESS == vaSts, MFX_ERR_DEVICE_FAILED);
+
+        buffer_id = VA_INVALID_ID;
+    }
+
+    return MFX_ERR_NONE;
+}
+#endif
 
 #endif // __MFXUTILS_H__

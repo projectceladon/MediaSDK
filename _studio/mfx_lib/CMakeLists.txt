@@ -44,7 +44,6 @@ foreach( prefix ${MSDK_LIB_ROOT}/shared/src )
     ${prefix}/mfx_common_decode_int.cpp
     ${prefix}/mfx_common_int.cpp
     ${prefix}/mfx_enc_common.cpp
-    ${prefix}/mfx_mpeg2_dec_common.cpp
     ${prefix}/mfx_critical_error_handler.cpp
     ${prefix}/mfx_vpx_dec_common.cpp
   )
@@ -75,6 +74,7 @@ list( APPEND mdirs
   scheduler vpp decode/vc1
   decode/mjpeg decode/h264 decode/mpeg2 cmrt_cross_platform
   encode_hw/vp9 encode_hw/h265 encode_hw/h264 encode_hw/mpeg2 encode_hw/mjpeg
+  encode/mjpeg
   decode/h265 decode/vp8 decode/vp9 mctf_package/mctf
   )
 include_directories( ${MSDK_LIB_ROOT}/fei/h264_common )
@@ -90,7 +90,7 @@ include_directories( ${MSDK_LIB_ROOT}/genx/copy_kernels/isa )
 include_directories( ${MSDK_STUDIO_ROOT}/shared/asc/include )
 
 list( APPEND cdirs
-  brc h264_enc mpeg2_dec vc1_dec vp9_dec vc1_common
+  brc h264_enc mpeg2_dec vc1_dec vp9_dec vc1_common jpeg_enc
   )
 foreach( dir ${cdirs} )
   include_directories( ${MSDK_UMC_ROOT}/codec/${dir}/include )
@@ -120,7 +120,6 @@ foreach( prefix ${MSDK_LIB_ROOT}/shared/src )
     ${prefix}/mfx_user_plugin.cpp
     #=================
     ${prefix}/mfx_brc_common.cpp
-    ${prefix}/mfx_mpeg2_dec_common.cpp
     ${prefix}/mfx_vc1_dec_common.cpp
     ${prefix}/mfx_vpx_dec_common.cpp
     #=================
@@ -133,6 +132,7 @@ foreach( prefix ${MSDK_STUDIO_ROOT}/shared/src )
     ${prefix}/libmfx_allocator.cpp
     ${prefix}/libmfx_allocator_vaapi.cpp
     ${prefix}/libmfx_core.cpp
+    ${prefix}/libmfx_core_hw.cpp
     ${prefix}/libmfx_core_factory.cpp
     ${prefix}/libmfx_core_vaapi.cpp
     ${prefix}/mfx_umc_alloc_wrapper.cpp
@@ -173,6 +173,12 @@ else()
   set(GENX_LIB "")
 endif()
 
+if( MFX_ENABLE_SW_FALLBACK )
+  set(SW_FALLBACK_LIBS "jpeg_enc;color_space_converter_hw;ipp;encode")
+else()
+  set(SW_FALLBACK_LIBS "")
+endif()
+
 set( LIBS "" )
 list( APPEND LIBS
   bitrate_control
@@ -180,6 +186,7 @@ list( APPEND LIBS
   h265_dec_hw
   jpeg_common
   jpeg_dec_hw
+  ${SW_FALLBACK_LIBS}
   mpeg2_dec_hw
   vc1_common
   vc1_dec_hw

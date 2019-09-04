@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 Intel Corporation
+// Copyright (c) 2017-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,10 +22,15 @@
 
 #include "umc_defs.h"
 #include "umc_va_linux.h"
+#include "umc_va_linux_protected.h"
 #include "umc_va_video_processing.h"
 #include "mfx_trace.h"
 #include "umc_frame_allocator.h"
 #include "mfxstructures.h"
+
+#if defined(MFX_ENABLE_CPLIB)
+#include "mfx_cenc.h"
+#endif
 
 #define UMC_VA_NUM_OF_COMP_BUFFERS       8
 #define UMC_VA_DECODE_STREAM_OUT_ENABLE  2
@@ -178,10 +183,10 @@ VAProfile get_next_va_profile(uint32_t umc_codec, uint32_t profile)
         break;
 #if (MFX_VERSION >= 1027)
     case UMC::VA_H265| UMC::VA_PROFILE_422 | UMC::VA_PROFILE_REXT:
-        va_profile = VAProfileHEVCMain422_10;
+        if (profile < 1) va_profile = VAProfileHEVCMain422_10;
         break;
     case UMC::VA_H265| UMC::VA_PROFILE_444 | UMC::VA_PROFILE_REXT:
-        va_profile = VAProfileHEVCMain444;
+        if (profile < 1) va_profile = VAProfileHEVCMain444;
         break;
 #endif
     case UMC::VA_H265 | UMC::VA_PROFILE_10:
@@ -191,10 +196,10 @@ VAProfile get_next_va_profile(uint32_t umc_codec, uint32_t profile)
     case UMC::VA_H265 | UMC::VA_PROFILE_REXT:
     case UMC::VA_H265 | UMC::VA_PROFILE_REXT | UMC::VA_PROFILE_10:
     case UMC::VA_H265 | UMC::VA_PROFILE_REXT | UMC::VA_PROFILE_422 | UMC::VA_PROFILE_10:
-        va_profile = VAProfileHEVCMain422_10;
+        if (profile < 1) va_profile = VAProfileHEVCMain422_10;
         break;
     case UMC::VA_H265| UMC::VA_PROFILE_444 | UMC::VA_PROFILE_REXT | UMC::VA_PROFILE_10:
-        va_profile = VAProfileHEVCMain444_10;
+        if (profile < 1) va_profile = VAProfileHEVCMain444_10;
         break;
 #endif
     case UMC::VA_VC1:
@@ -266,8 +271,6 @@ LinuxVideoAccelerator::LinuxVideoAccelerator(void)
     m_uiCompBuffersNum  = 0;
     m_uiCompBuffersUsed = 0;
 
-    vm_mutex_set_invalid(&m_SyncMutex);
-
 #if defined(ANDROID)
     m_isUseStatuReport  = false;
 #else
@@ -311,11 +314,7 @@ Status LinuxVideoAccelerator::Init(VideoAcceleratorParams* pInfo)
         umcRes = UMC_ERR_INVALID_PARAMS;
     if ((UMC_OK == umcRes) && (pParams->m_iNumberSurfaces < 0))
         umcRes = UMC_ERR_INVALID_PARAMS;
-    if (UMC_OK == umcRes)
-    {
-        vm_mutex_set_invalid(&m_SyncMutex);
-        umcRes = (Status)vm_mutex_init(&m_SyncMutex);
-    }
+
     // filling input parameters
     if (UMC_OK == umcRes)
     {
@@ -327,6 +326,10 @@ Status LinuxVideoAccelerator::Init(VideoAcceleratorParams* pInfo)
         m_allocator         = pParams->m_allocator;
         m_FrameState        = lvaBeforeBegin;
 
+        if (IS_PROTECTION_ANY(pParams->m_protectedVA))
+        {
+            m_protectedVA = new ProtectedVA(pParams->m_protectedVA);
+        }
 
         if (pParams->m_needVideoProcessingVA)
         {
@@ -457,7 +460,7 @@ Status LinuxVideoAccelerator::Init(VideoAcceleratorParams* pInfo)
             va_attributes[nattr].value = VA_DEC_SLICE_MODE_NORMAL;
             nattr++;
 
-            va_attributes[nattr++].type = (VAConfigAttribType)VAConfigAttribDecProcessing;
+            va_attributes[nattr++].type = VAConfigAttribDecProcessing;
 
             va_attributes[nattr++].type = VAConfigAttribEncryption;
 
@@ -481,6 +484,26 @@ Status LinuxVideoAccelerator::Init(VideoAcceleratorParams* pInfo)
                 attribsNumber++;
         }
 
+#ifdef MFX_ENABLE_CPLIB
+        if (UMC_OK == umcRes && m_protectedVA && IS_PROTECTION_CENC(m_protectedVA->GetProtected()))
+        {
+            va_attributes[attribsNumber].type = VAConfigAttribEncryption;
+            if (m_protectedVA->GetProtected() == MFX_PROTECTION_CENC_WV_CLASSIC)
+            {
+                if (va_attributes[3].value & VA_ENCRYPTION_TYPE_CENC_CBC)
+                    va_attributes[attribsNumber].value = VA_ENCRYPTION_TYPE_CENC_CBC;
+            }
+            else if (m_protectedVA->GetProtected() == MFX_PROTECTION_CENC_WV_GOOGLE_DASH)
+            {
+                if (va_attributes[3].value & VA_ENCRYPTION_TYPE_CENC_CTR_LENGTH)
+                    va_attributes[attribsNumber].value = VA_ENCRYPTION_TYPE_CENC_CTR_LENGTH;
+            }
+            else
+                umcRes = UMC_ERR_FAILED;
+
+            attribsNumber++;
+        }
+#endif
 
         if (UMC_OK == umcRes)
         {
@@ -531,40 +554,43 @@ Status LinuxVideoAccelerator::Init(VideoAcceleratorParams* pInfo)
 Status LinuxVideoAccelerator::Close(void)
 {
     MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_HOTSPOTS, "LinuxVideoAccelerator::Close");
-    VACompBuffer* pCompBuf = NULL;
-    uint32_t i;
 
     if (NULL != m_pCompBuffers)
     {
-        for (i = 0; i < m_uiCompBuffersUsed; ++i)
+        for (uint32_t i = 0; i < m_uiCompBuffersUsed; ++i)
         {
-            pCompBuf = m_pCompBuffers[i];
-            if (pCompBuf->NeedDestroy() && (NULL != m_dpy))
+            if (m_pCompBuffers[i]->NeedDestroy() && (NULL != m_dpy))
             {
-                vaDestroyBuffer(m_dpy, pCompBuf->GetID());
+                VABufferID id = m_pCompBuffers[i]->GetID();
+                mfxStatus sts = CheckAndDestroyVAbuffer(m_dpy, id);
+                std::ignore = MFX_STS_TRACE(sts);
             }
             UMC_DELETE(m_pCompBuffers[i]);
         }
         delete[] m_pCompBuffers;
-        m_pCompBuffers = 0;
+        m_pCompBuffers = nullptr;
     }
     if (NULL != m_dpy)
     {
         if ((m_pContext && (*m_pContext != VA_INVALID_ID)) && !(m_pKeepVAState && *m_pKeepVAState))
         {
             MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_EXTCALL, "vaDestroyContext");
-            vaDestroyContext(m_dpy, *m_pContext);
+            VAStatus vaSts = vaDestroyContext(m_dpy, *m_pContext);
+            std::ignore = MFX_STS_TRACE(vaSts);
             *m_pContext = VA_INVALID_ID;
         }
         if ((m_pConfigId && (*m_pConfigId != VA_INVALID_ID)) && !(m_pKeepVAState && *m_pKeepVAState))
         {
-            vaDestroyConfig(m_dpy, *m_pConfigId);
+            VAStatus vaSts = vaDestroyConfig(m_dpy, *m_pConfigId);
+            std::ignore = MFX_STS_TRACE(vaSts);
             *m_pConfigId = VA_INVALID_ID;
         }
 
         m_dpy = NULL;
     }
 
+    delete m_protectedVA;
+    m_protectedVA = nullptr;
 
     delete m_videoProcessingVA;
     m_videoProcessingVA = 0;
@@ -572,8 +598,6 @@ Status LinuxVideoAccelerator::Close(void)
     m_FrameState = lvaBeforeBegin;
     m_uiCompBuffersNum  = 0;
     m_uiCompBuffersUsed = 0;
-    vm_mutex_unlock (&m_SyncMutex);
-    vm_mutex_destroy(&m_SyncMutex);
 
     return VideoAccelerator::Close();
 }
@@ -643,7 +667,7 @@ void* LinuxVideoAccelerator::GetCompBuffer(int32_t buffer_type, UMCVACompBuffer 
 
     if (NULL != buf) *buf = NULL;
 
-    vm_mutex_lock(&m_SyncMutex);
+    std::lock_guard<std::mutex> guard(m_SyncMutex);
     for (i = 0; i < m_uiCompBuffersUsed; ++i)
     {
         pCompBuf = m_pCompBuffers[i];
@@ -664,7 +688,6 @@ void* LinuxVideoAccelerator::GetCompBuffer(int32_t buffer_type, UMCVACompBuffer 
         if (NULL != buf) *buf = pCompBuf;
         pBufferPointer = pCompBuf->GetPtr();
     }
-    vm_mutex_unlock(&m_SyncMutex);
     return pBufferPointer;
 }
 
@@ -729,8 +752,8 @@ VACompBuffer* LinuxVideoAccelerator::GetCompBufferHW(int32_t type, int32_t size,
                     va_size         = sizeof(VASliceParameterBufferHEVCExtension);
                     va_num_elements = size/sizeof(VASliceParameterBufferHEVCExtension);
                 }
-                break;
 #endif
+                break;
             default:
                 va_size         = 0;
                 va_num_elements = 0;
@@ -772,10 +795,9 @@ LinuxVideoAccelerator::Execute()
     uint32_t         i;
     VACompBuffer*  pCompBuf = NULL;
 
-    vm_mutex_lock(&m_SyncMutex);
-
     if (UMC_OK == umcRes)
     {
+        std::lock_guard<std::mutex> guard(m_SyncMutex);
         for (i = 0; i < m_uiCompBuffersUsed; i++)
         {
             pCompBuf = m_pCompBuffers[i];
@@ -802,7 +824,6 @@ LinuxVideoAccelerator::Execute()
         }
     }
 
-    vm_mutex_unlock(&m_SyncMutex);
     if (UMC_OK == umcRes)
     {
         umcRes = va_to_umc_res(va_res);
@@ -815,32 +836,34 @@ Status LinuxVideoAccelerator::EndFrame(void*)
     MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_INTERNAL, "EndFrame");
     VAStatus va_res = VA_STATUS_SUCCESS;
 
-    vm_mutex_lock(&m_SyncMutex);
+    std::lock_guard<std::mutex> guard(m_SyncMutex);
 
     {
         MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_EXTCALL, "vaEndPicture");
         va_res = vaEndPicture(m_dpy, *m_pContext);
         MFX_LTRACE_2(MFX_TRACE_LEVEL_EXTCALL, m_sDecodeTraceEnd, "%d|%d", *m_pContext, 0);
     }
+    std::ignore = MFX_STS_TRACE(va_res);
+    Status stsRet = va_to_umc_res(va_res);
 
     m_FrameState = lvaBeforeBegin;
 
-    VACompBuffer* pCompBuf = NULL;
     for (uint32_t i = 0; i < m_uiCompBuffersUsed; ++i)
     {
-        pCompBuf = m_pCompBuffers[i];
-        if (pCompBuf->NeedDestroy())
+        if (m_pCompBuffers[i]->NeedDestroy())
         {
-            VAStatus va_sts = vaDestroyBuffer(m_dpy, pCompBuf->GetID());
-            if (VA_STATUS_SUCCESS == va_res)
-                va_res = va_sts;
+            VABufferID id = m_pCompBuffers[i]->GetID();
+            mfxStatus sts = CheckAndDestroyVAbuffer(m_dpy, id);
+            std::ignore = MFX_STS_TRACE(sts);
+
+            if (sts != MFX_ERR_NONE)
+                stsRet = UMC_ERR_FAILED;
         }
-        UMC_DELETE(pCompBuf);
+        UMC_DELETE(m_pCompBuffers[i]);
     }
     m_uiCompBuffersUsed = 0;
 
-    vm_mutex_unlock(&m_SyncMutex);
-    return va_to_umc_res(va_res);
+    return stsRet;
 }
 
 /* TODO: need to rewrite return value type (possible problems with signed/unsigned) */

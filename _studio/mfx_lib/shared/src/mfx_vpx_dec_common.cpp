@@ -212,23 +212,15 @@ namespace MFX_VPX_Utility
                 p_out->mfx.FrameInfo.FrameRateExtD = p_in->mfx.FrameInfo.FrameRateExtD;
             }
 
-            if ((p_in->mfx.FrameInfo.AspectRatioW || p_in->mfx.FrameInfo.AspectRatioH) &&
-                (!p_in->mfx.FrameInfo.AspectRatioW || !p_in->mfx.FrameInfo.AspectRatioH))
+            if ((p_in->mfx.FrameInfo.AspectRatioW == 0 && p_in->mfx.FrameInfo.AspectRatioH == 0) ||
+                (p_in->mfx.FrameInfo.AspectRatioW != 0 && p_in->mfx.FrameInfo.AspectRatioH != 0))
             {
-                sts = MFX_ERR_UNSUPPORTED;
+                p_out->mfx.FrameInfo.AspectRatioW = p_in->mfx.FrameInfo.AspectRatioW;
+                p_out->mfx.FrameInfo.AspectRatioH = p_in->mfx.FrameInfo.AspectRatioH;
             }
             else
             {
-                if ((p_in->mfx.FrameInfo.AspectRatioW && p_in->mfx.FrameInfo.AspectRatioW != 1) ||
-                    (p_in->mfx.FrameInfo.AspectRatioH && p_in->mfx.FrameInfo.AspectRatioH != 1))
-                {
-                    sts = MFX_ERR_UNSUPPORTED;
-                }
-                else
-                {
-                    p_out->mfx.FrameInfo.AspectRatioW = p_in->mfx.FrameInfo.AspectRatioW;
-                    p_out->mfx.FrameInfo.AspectRatioH = p_in->mfx.FrameInfo.AspectRatioH;
-                }
+                sts = MFX_ERR_UNSUPPORTED;
             }
 
 
@@ -310,75 +302,34 @@ namespace MFX_VPX_Utility
         return sts;
     }
 
-    bool CheckVideoParam(mfxVideoParam const*p_in, mfxU32 codecId, eMFXPlatform platform, eMFXHWType hwtype)
+    bool CheckFrameInfo(const mfxFrameInfo &frameInfo, mfxU32 codecId, eMFXPlatform platform,  eMFXHWType hwtype)
     {
         (void)hwtype;
 
-        if (!p_in)
-            return false;
-
-        if (p_in->Protected)
-            return false;
-
-        if (codecId != p_in->mfx.CodecId)
-            return false;
-
         if (codecId == MFX_CODEC_VP8 || platform == MFX_PLATFORM_SOFTWARE)
-            if (p_in->mfx.FrameInfo.Width > 4096 || p_in->mfx.FrameInfo.Height > 4096)
+            if (frameInfo.Width > 4096 || frameInfo.Height > 4096)
                 return false;
 
-        if (p_in->mfx.FrameInfo.Height % 16 || p_in->mfx.FrameInfo.Width % 16)
+        if (frameInfo.Height % 16 || frameInfo.Width % 16)
             return false;
 
-        // both zero or not zero
-        if ((p_in->mfx.FrameInfo.AspectRatioW || p_in->mfx.FrameInfo.AspectRatioH) && !(p_in->mfx.FrameInfo.AspectRatioW && p_in->mfx.FrameInfo.AspectRatioH))
-            return false;
-        
-        if ((p_in->mfx.FrameInfo.AspectRatioW && p_in->mfx.FrameInfo.AspectRatioW != 1) ||
-            (p_in->mfx.FrameInfo.AspectRatioH && p_in->mfx.FrameInfo.AspectRatioH != 1))
+        if ((frameInfo.AspectRatioW != 0 && frameInfo.AspectRatioH == 0) ||
+            (frameInfo.AspectRatioW == 0 && frameInfo.AspectRatioH != 0))
             return false;
 
-        if (!(p_in->IOPattern & MFX_IOPATTERN_OUT_VIDEO_MEMORY) && !(p_in->IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY) && !(p_in->IOPattern & MFX_IOPATTERN_OUT_OPAQUE_MEMORY))
-            return false;
-
-        if ((p_in->IOPattern & MFX_IOPATTERN_OUT_VIDEO_MEMORY) && (p_in->IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY) && (p_in->IOPattern & MFX_IOPATTERN_OUT_OPAQUE_MEMORY))
-            return false;
-
-        if (codecId == MFX_CODEC_VP8)
+        if (codecId != MFX_CODEC_VP8)
         {
-            if (MFX_FOURCC_NV12 != p_in->mfx.FrameInfo.FourCC)
-                return false;
-            if (MFX_CHROMAFORMAT_YUV420 != p_in->mfx.FrameInfo.ChromaFormat)
-            {
-                return false;
-            }
-            if (p_in->mfx.CodecProfile > MFX_PROFILE_VP8_3)
-                return false;
-
-            if (p_in->mfx.CodecLevel != MFX_LEVEL_UNKNOWN)
-                return false;
-        }
-        else
-        {
-            /*if (platform == MFX_PLATFORM_SOFTWARE)
-            {
-                if (p_in->mfx.FrameInfo.FourCC != MFX_FOURCC_YV12)
-                    return false;
-            }
-            else*/
-            {
-                if (   p_in->mfx.FrameInfo.FourCC != MFX_FOURCC_NV12
-                    && p_in->mfx.FrameInfo.FourCC != MFX_FOURCC_AYUV
-                    && p_in->mfx.FrameInfo.FourCC != MFX_FOURCC_P010
+            if (   frameInfo.FourCC != MFX_FOURCC_NV12
+                && frameInfo.FourCC != MFX_FOURCC_AYUV
+                && frameInfo.FourCC != MFX_FOURCC_P010
 #if (MFX_VERSION >= 1027)
-                    //&& p_in->mfx.FrameInfo.FourCC != MFX_FOURCC_Y210
-                    && !(p_in->mfx.FrameInfo.FourCC == MFX_FOURCC_Y410 && hwtype >= MFX_HW_ICL)
+                //&& p_in->mfx.FrameInfo.FourCC != MFX_FOURCC_Y210
+                && !(frameInfo.FourCC == MFX_FOURCC_Y410 && hwtype >= MFX_HW_ICL)
 #endif
-                )
+            )
                 return false;
-            }
 
-            switch (p_in->mfx.FrameInfo.ChromaFormat)
+            switch (frameInfo.ChromaFormat)
             {
             case MFX_CHROMAFORMAT_YUV420:
             case MFX_CHROMAFORMAT_YUV422:
@@ -389,14 +340,13 @@ namespace MFX_VPX_Utility
                 return false;
             }
 
-            if (p_in->mfx.FrameInfo.ChromaFormat)
+            if (frameInfo.ChromaFormat)
             {
-                if ((p_in->mfx.FrameInfo.FourCC == MFX_FOURCC_NV12 && p_in->mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV420)
-                    || (p_in->mfx.FrameInfo.FourCC == MFX_FOURCC_AYUV && p_in->mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV444)
-                    || (p_in->mfx.FrameInfo.FourCC == MFX_FOURCC_P010 && p_in->mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV420)
+                if ((frameInfo.FourCC == MFX_FOURCC_NV12 && frameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV420)
+                    || (frameInfo.FourCC == MFX_FOURCC_AYUV && frameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV444)
+                    || (frameInfo.FourCC == MFX_FOURCC_P010 && frameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV420)
 #if (MFX_VERSION >= 1027)
-                    //|| (p_in->mfx.FrameInfo.FourCC == MFX_FOURCC_Y210 && p_in->mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV422)
-                    || (p_in->mfx.FrameInfo.FourCC == MFX_FOURCC_Y410 && p_in->mfx.FrameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV444)
+                    || (frameInfo.FourCC == MFX_FOURCC_Y410 && frameInfo.ChromaFormat != MFX_CHROMAFORMAT_YUV444)
 #endif
                     )
                     return false;
@@ -406,6 +356,46 @@ namespace MFX_VPX_Utility
         return true;
     }
 
+    bool CheckInfoMFX(const mfxInfoMFX &mfx, mfxU32 codecId, eMFXPlatform platform,  eMFXHWType hwtype)
+    {
+        if (codecId != mfx.CodecId)
+            return false;
+
+        if (codecId == MFX_CODEC_VP8)
+        {
+            if (MFX_FOURCC_NV12 != mfx.FrameInfo.FourCC)
+                return false;
+            if (MFX_CHROMAFORMAT_YUV420 != mfx.FrameInfo.ChromaFormat)
+            {
+                return false;
+            }
+            if (mfx.CodecProfile > MFX_PROFILE_VP8_3)
+                return false;
+
+            if (mfx.CodecLevel != MFX_LEVEL_UNKNOWN)
+                return false;
+        }
+
+        return CheckFrameInfo(mfx.FrameInfo, codecId, platform, hwtype);
+    }
+
+    bool CheckVideoParam(mfxVideoParam const*p_in, mfxU32 codecId, eMFXPlatform platform, eMFXHWType hwtype)
+    {
+        if (!p_in)
+            return false;
+
+        if (p_in->Protected)
+            return false;
+
+        if (!(p_in->IOPattern & MFX_IOPATTERN_OUT_VIDEO_MEMORY) && !(p_in->IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY) && !(p_in->IOPattern & MFX_IOPATTERN_OUT_OPAQUE_MEMORY))
+            return false;
+
+        if ((p_in->IOPattern & MFX_IOPATTERN_OUT_VIDEO_MEMORY) && (p_in->IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY) && (p_in->IOPattern & MFX_IOPATTERN_OUT_OPAQUE_MEMORY))
+            return false;
+
+        return CheckInfoMFX(p_in->mfx, codecId, platform, hwtype);
+    }
+
     mfxStatus QueryIOSurfInternal(mfxVideoParam const*p_params, mfxFrameAllocRequest *p_request)
     {
         p_request->Info = p_params->mfx.FrameInfo;
@@ -413,6 +403,12 @@ namespace MFX_VPX_Utility
         p_request->NumFrameMin = p_params->mfx.CodecId == MFX_CODEC_VP8 ? mfxU16(4) : mfxU16(8);
 
         p_request->NumFrameMin += p_params->AsyncDepth ? p_params->AsyncDepth : MFX_AUTO_ASYNC_DEPTH_VALUE;
+
+        // Increase minimum number by one
+        // E.g., decoder unlocks references in sync part (NOT async), so in order to free some surface
+        // application need an additional surface to call DecodeFrameAsync()
+        p_request->NumFrameMin += 1;
+
         p_request->NumFrameSuggested = p_request->NumFrameMin;
 
         if (p_params->IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY)

@@ -22,7 +22,6 @@
 #include <mfx_scheduler_core_task.h>
 #include <mfx_trace.h>
 
-#include <umc_automatic_mutex.h>
 #include <vm_time.h>
 
 // declare the static section of the file
@@ -55,15 +54,13 @@ enum
 
 int mfxSchedulerCore::GetTaskPriority(mfxTaskHandle task)
 {
-    const MFX_SCHEDULER_TASK *pTask;
     int taskPriority = -1;
 
     //
     // THE EXECUTION IS ALREADY IN SECURE SECTION.
     // Just do what need to do.
     //
-
-    pTask = m_ppTaskLookUpTable[task.taskID];
+    const MFX_SCHEDULER_TASK *pTask = m_ppTaskLookUpTable.at(task.taskID);
     if ((pTask) &&
         (pTask->jobID == task.jobID) &&
         (MFX_TASK_WORKING == pTask->curStatus))
@@ -214,16 +211,14 @@ mfxStatus mfxSchedulerCore::CanContinuePreviousTask(MFX_CALL_INFO &callInfo,
                                                     mfxTaskHandle previousTask,
                                                     const mfxU32 threadNum)
 {
-    MFX_SCHEDULER_TASK *pTask;
-
     //
     // THE EXECUTION IS ALREADY IN SECURE SECTION.
     // Just do what need to do.
     //
 
     // get the task object
-    pTask = m_ppTaskLookUpTable[previousTask.taskID];
-    if ((NULL == pTask) ||
+    MFX_SCHEDULER_TASK *pTask = m_ppTaskLookUpTable.at(previousTask.taskID);
+    if ((nullptr == pTask) ||
         (pTask->jobID != previousTask.jobID))
     {
         return MFX_ERR_NOT_FOUND;
@@ -424,17 +419,18 @@ void mfxSchedulerCore::MarkTaskCompleted(const MFX_CALL_INFO *pCallInfo,
     (void)pCallInfo;
     (void)threadNum;
 
-    bool taskReleased = false;
-    mfxU32 nTraceTaskId = 0;
-
-    MFX_SCHEDULER_TASK *pTask = m_ppTaskLookUpTable[pCallInfo->taskHandle.taskID];
-    mfxU32 curTime;
+    MFX_SCHEDULER_TASK *pTask = nullptr;
+    pTask = m_ppTaskLookUpTable.at(pCallInfo->taskHandle.taskID);
 
     // check error(s)
-    if (NULL == pTask)
+    if (nullptr == pTask)
     {
         return;
     }
+
+    bool taskReleased = false;
+    mfxU32 nTraceTaskId = 0;
+    mfxU32 curTime;
 
     MFX_THREAD_ASSIGNMENT &occupancyInfo = *(pTask->param.pThreadAssignment);
 
@@ -589,7 +585,7 @@ void mfxSchedulerCore::MarkTaskCompleted(const MFX_CALL_INFO *pCallInfo,
                 {
                     mfxU32 idx = pTask->param.dependencies.dstIdx[i];
 
-                    m_pDependencyTable[idx].p = NULL;
+                    m_pDependencyTable.at(idx).p = nullptr;
                 }
             }
 
@@ -633,7 +629,7 @@ void mfxSchedulerCore::ResolveDependencyTable(MFX_SCHEDULER_TASK *pTask)
         {
             mfxU32 idx = pTask->param.dependencies.dstIdx[i];
 
-            m_pDependencyTable[idx].mfxRes = pTask->curStatus;
+            m_pDependencyTable.at(idx).mfxRes = pTask->curStatus;
         }
     }
 }

@@ -31,6 +31,7 @@ File Name: cttmetrics_gtest.cpp
 #include "cttmetrics.h"
 #include "cttmetrics_utils.h"
 #include "gtest/gtest.h"
+#include "device_info.h"
 #include "igt_load.h"
 
 #ifndef I915_EXEC_BSD_RING1
@@ -48,7 +49,7 @@ char GPU_RPn_FILE_PATH [] = {"/sys/class/drm/card0/gt_RPn_freq_mhz"};
 char GPU_RP0_FILE_PATH [] = {"/sys/class/drm/card0/gt_RP0_freq_mhz"};
 char I915_DRI_DIR[16] = "/dev/dri/card0";
 
-const struct intel_device_info *device_info;
+uint16_t dev_id;
 unsigned int num_slices;
 
 unsigned translateCttToDRMEngineName(cttMetric metric, int gem_fd)
@@ -79,10 +80,10 @@ void getAndCheckAvailableMetrics(unsigned int* count, cttMetric* out_metric_ids)
     EXPECT_EQ(CTT_ERR_NONE, CTTMetrics_GetMetricCount(count));
     EXPECT_EQ(CTT_ERR_NONE, CTTMetrics_GetMetricInfo(*count, out_metric_ids));
 
-    if (num_slices > 1)
+    if (num_slices > 1 && !IS_BROXTON(dev_id))
         EXPECT_EQ(*count, (unsigned int)CTT_MAX_METRIC_COUNT);
     else
-        //GT2 haven't VDBOX2
+        //GT2 systems, Broxton haven't VDBOX2
         EXPECT_EQ(*count, (unsigned int)(CTT_MAX_METRIC_COUNT - 1));
 
     CTTMetrics_Close();
@@ -91,7 +92,6 @@ void getAndCheckAvailableMetrics(unsigned int* count, cttMetric* out_metric_ids)
 int getGpuFrequency(char* path)
 {
     int fd, res = -1;
-    char buf[6] =  {0};
 
     fd = open(path, O_RDONLY);
     if (fd >= 0)
@@ -106,14 +106,13 @@ int getGpuFrequency(char* path)
 int setGpuFrequency(int min, int max, int boost)
 {
     int fd_min, fd_max, fd_boost, res = -1, res_min = -1, res_max = -1, res_boost = -1;
-    char buf_max[6] = {0}, buf_min[6] = {0}, buf_boost[6] = {0};
 
     if (!(min <= max && min <= boost && boost <= max))
         return res;
 
-    sprintf(buf_min, "%d", min);
-    sprintf(buf_max, "%d", max);
-    sprintf(buf_boost, "%d", boost);
+    std::string ss_min(std::to_string(min));
+    std::string ss_max(std::to_string(max));
+    std::string ss_boost(std::to_string(boost));
 
     fd_min = open(GPU_MIN_FREQ_FILE_PATH, O_WRONLY);
     fd_max = open(GPU_MAX_FREQ_FILE_PATH, O_WRONLY);
@@ -123,20 +122,16 @@ int setGpuFrequency(int min, int max, int boost)
     {
         if (min < getGpuFrequency(GPU_MIN_FREQ_FILE_PATH))
         {
-            res_min = write(fd_min, buf_min, sizeof(buf_min));
-            res_max = write(fd_max, buf_max, sizeof(buf_max));
-            if (fd_boost >= 0) res_boost = write(fd_boost, buf_boost, sizeof(buf_boost));
+            res_min = write(fd_min, ss_min.c_str(), ss_min.size());
+            res_max = write(fd_max, ss_max.c_str(), ss_max.size());
+            if (fd_boost >= 0) res_boost = write(fd_boost, ss_boost.c_str(), ss_boost.size());
         }
         else
         {
-            if (fd_boost >= 0) res_boost = write(fd_boost, buf_boost, sizeof(buf_boost));
-            res_max = write(fd_max, buf_max, sizeof(buf_max));
-            res_min = write(fd_min, buf_min, sizeof(buf_min));
+            if (fd_boost >= 0) res_boost = write(fd_boost, ss_boost.c_str(), ss_boost.size());
+            res_max = write(fd_max, ss_max.c_str(), ss_max.size());
+            res_min = write(fd_min, ss_min.c_str(), ss_min.size());
         }
-
-        close(fd_min);
-        close(fd_max);
-        if (fd_boost >= 0) close(fd_boost);
     }
 
     if (res_min >= 0 && res_max >= 0)
@@ -144,6 +139,10 @@ int setGpuFrequency(int min, int max, int boost)
         res = 0;
         if (fd_boost >= 0) res = res_boost;
     }
+
+    if (fd_min >= 0) close(fd_min);
+    if (fd_max >= 0) close(fd_max);
+    if (fd_boost >= 0) close(fd_boost);
 
     return res;
 }
@@ -354,7 +353,6 @@ TEST(cttMetricsFrequencyReport, setAndCheckFrequency)
     const unsigned int test_metric_cnt = 1;
     const float epsilon = 20.0f;
 
-    cttStatus sts = CTT_ERR_NONE;
     cttMetric metrics_ids [] = {CTT_AVG_GT_FREQ};
     unsigned int num_repeats = 2;
     unsigned int rp_n_freq = 0, rp_0_freq = 0;
@@ -383,12 +381,17 @@ TEST(cttMetricsFrequencyReport, setAndCheckFrequency)
             for (unsigned int repeat = 0;repeat < num_repeats;repeat++)
             {
                 igt_spin_t* spin = igt_spin_batch_new(gem_fd, 0, I915_EXEC_RENDER, 0);
+                if (!spin)
+                {
+                    EXPECT_NE(spin, nullptr);
+                    break;
+                }
 
                 EXPECT_EQ(CTT_ERR_NONE, CTTMetrics_GetValue(test_metric_cnt, metric_values)) << "rp_freq : " << rp_freq;
 
                 igt_spin_batch_free(gem_fd, spin);
 
-                if (rp_freq >= (rp_0_freq - 50*num_slices) && rp_freq <= rp_0_freq && metric_values[0] < (rp_freq - epsilon) && device_info->is_skylake)
+                if (rp_freq >= (rp_0_freq - 50*num_slices) && rp_freq <= rp_0_freq && metric_values[0] < (rp_freq - epsilon) && IS_SKYLAKE(dev_id))
                 {
                     int rp_freq_skl = rp_0_freq - 50*num_slices;
                     EXPECT_GE(metric_values[0], rp_freq_skl - epsilon) << "rp_freq_skl : " << rp_freq_skl;
@@ -442,6 +445,11 @@ TEST(cttMetricsEngineLoadReport, setAndCheckFullLoadOnSingleEngine)
             for (unsigned int repeat = 0;repeat < num_repeats;repeat++)
             {
                 igt_spin_t* spin = igt_spin_batch_new(gem_fd, 0, translateCttToDRMEngineName(metric_all_ids[i915_metric_num], gem_fd), 0);
+                if (!spin)
+                {
+                    EXPECT_NE(spin, nullptr);
+                    break;
+                }
 
                 EXPECT_EQ(CTT_ERR_NONE, CTTMetrics_GetValue(test_metric_cnt, metric_values));
 
@@ -499,6 +507,12 @@ TEST(cttMetricsEngineLoadReport, setAndCheckFullLoadOnFewEngines)
                 {
                     igt_spin_t* spin_1 = igt_spin_batch_new(gem_fd, 0, translateCttToDRMEngineName(metric_all_ids[i], gem_fd), 0);
                     igt_spin_t* spin_2 = igt_spin_batch_new(gem_fd, 0, translateCttToDRMEngineName(metric_all_ids[j], gem_fd), 0);
+                    if (!spin_1 || !spin_2)
+                    {
+                        EXPECT_NE(spin_1, nullptr);
+                        EXPECT_NE(spin_2, nullptr);
+                        break;
+                    }
 
                     EXPECT_EQ(CTT_ERR_NONE, CTTMetrics_GetValue(test_metric_cnt, metric_values));
 
@@ -529,8 +543,7 @@ int main(int argc, char **argv)
     boost_freq = getGpuFrequency(GPU_BOOST_FREQ_FILE_PATH);
 
     // get device info
-    uint16_t dev_id = intel_get_drm_devid();
-    device_info = intel_get_device_info(dev_id);
+    dev_id = intel_get_drm_devid();
     num_slices = intel_gt(dev_id);
 
     ::testing::InitGoogleTest(&argc, argv);

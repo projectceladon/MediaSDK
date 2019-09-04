@@ -1,5 +1,5 @@
 /******************************************************************************\
-Copyright (c) 2005-2018, Intel Corporation
+Copyright (c) 2005-2019, Intel Corporation
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -129,6 +129,13 @@ mfxStatus ConfigVideoEnhancementFilters( sInputParams* pParams, sAppResources* p
     {
         pResources->mirroringConfig = pParams->mirroringParam[paramID];
         pVppParam->ExtParam[pVppParam->NumExtParam++] = (mfxExtBuffer*)&(pResources->mirroringConfig);
+    }
+
+    if( VPP_FILTER_ENABLED_CONFIGURED == pParams->colorfillParam[paramID].mode )
+    {
+        pResources->colorfillConfig = pParams->colorfillParam[paramID];
+        pVppParam->ExtParam[pVppParam->NumExtParam++] = &(pResources->colorfillConfig.Header);
+
     }
 
     if( VPP_FILTER_ENABLED_CONFIGURED == pParams->procampParam[paramID].mode )

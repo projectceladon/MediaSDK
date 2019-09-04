@@ -1,15 +1,15 @@
-// Copyright (c) 2017 Intel Corporation
-// 
+// Copyright (c) 2018-2019 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -355,46 +355,48 @@ static mfxU16 CheckLookAheadDependency(mfxU16 dep, mfxU16 /*tu*/)
     if (dep != 0) return dep;
     return 10;
 }
-static void InitHWCaps(tagENCODE_CAPS &hwCaps)
+static void InitHWCaps(MFX_ENCODE_CAPS &hwCaps)
 {
-    memset (&hwCaps, 0, sizeof(tagENCODE_CAPS));
+    memset (&hwCaps, 0, sizeof(MFX_ENCODE_CAPS));
+    hwCaps.ddi_caps.CodingLimitSet=1;
+    hwCaps.ddi_caps.NoFieldFrame=1;
+    hwCaps.ddi_caps.NoGapInFrameCount=1;
+    hwCaps.ddi_caps.NoGapInPicOrder=1;
+    hwCaps.ddi_caps.NoUnpairedField=1;
+    hwCaps.ddi_caps.BitDepth8Only=1;
+    hwCaps.ddi_caps.ConsecutiveMBs=1;
+    hwCaps.ddi_caps.SliceStructure=4;
+    hwCaps.ddi_caps.NoWeightedPred=1;
+    hwCaps.ddi_caps.ClosedGopOnly=1;
+    hwCaps.ddi_caps.NoFrameCropping=1;
+    hwCaps.ddi_caps.FrameLevelRateCtrl=1;
+    hwCaps.ddi_caps.RawReconRefToggle=1;
+    hwCaps.ddi_caps.BRCReset=1; 
+    hwCaps.ddi_caps.RollingIntraRefresh=1;
+    hwCaps.ddi_caps.UserMaxFrameSizeSupport = 1;
+    hwCaps.ddi_caps.VCMBitrateControl=1;
+    hwCaps.ddi_caps.NoESS=1;
+    hwCaps.ddi_caps.Color420Only=1;
+    hwCaps.ddi_caps.ICQBRCSupport=1;
+    hwCaps.ddi_caps.EncFunc=1;
+    hwCaps.ddi_caps.EncodeFunc=1;
 
-    hwCaps.CodingLimitSet=1;
-    hwCaps.NoFieldFrame=1;
-    hwCaps.NoGapInFrameCount=1;
-    hwCaps.NoGapInPicOrder=1;
-    hwCaps.NoUnpairedField=1;
-    hwCaps.BitDepth8Only=1;
-    hwCaps.ConsecutiveMBs=1;
-    hwCaps.SliceStructure=4;
-    hwCaps.NoWeightedPred=1;
-    hwCaps.ClosedGopOnly=1;
-    hwCaps.NoFrameCropping=1;
-    hwCaps.FrameLevelRateCtrl=1;
-    hwCaps.RawReconRefToggle=1;
-    hwCaps.BRCReset=1; 
-    hwCaps.RollingIntraRefresh=1;
-    hwCaps.UserMaxFrameSizeSupport = 1;
-    hwCaps.VCMBitrateControl=1;    
-    hwCaps.NoESS=1;
-    hwCaps.Color420Only=1;
-    hwCaps.ICQBRCSupport=1;
-    hwCaps.EncFunc=1;
-    hwCaps.EncodeFunc=1;
-    
-    hwCaps.MaxPicWidth=4096;
-    hwCaps.MaxPicHeight=4096;
-    hwCaps.MaxNum_Reference=8;
-    hwCaps.MaxNum_SPS_id=32; 
-    hwCaps.MaxNum_PPS_id=255 ;
-    hwCaps.MaxNum_Reference1=2 ;
-    hwCaps.MBBRCSupport=1; 
-    hwCaps.MaxNumOfROI=4 ;
-    
-    hwCaps.SkipFrame=1;
-    hwCaps.MbQpDataSupport=1;
-    hwCaps.QVBRBRCSupport=1;
-    
+    hwCaps.ddi_caps.MaxPicWidth=4096;
+    hwCaps.ddi_caps.MaxPicHeight=4096;
+    hwCaps.ddi_caps.MaxNum_Reference=8;
+    hwCaps.ddi_caps.MaxNum_SPS_id=32;
+    hwCaps.ddi_caps.MaxNum_PPS_id=255 ;
+    hwCaps.ddi_caps.MaxNum_Reference1=2 ;
+    hwCaps.ddi_caps.MBBRCSupport=1; 
+    hwCaps.ddi_caps.MaxNumOfROI=4 ;
+
+    hwCaps.ddi_caps.SkipFrame=1;
+    hwCaps.ddi_caps.MbQpDataSupport=1;
+    hwCaps.ddi_caps.QVBRBRCSupport=1;
+
+    hwCaps.CQPSupport=1;
+    hwCaps.VBRSupport=1;
+    hwCaps.CBRSupport=1;
 }
 
 mfxStatus VideoENC_LA::Init(mfxVideoParam *par)
@@ -413,7 +415,9 @@ mfxStatus VideoENC_LA::Init(mfxVideoParam *par)
     MFX_CHECK_NULL_PTR1( par );
     MFX_CHECK( m_bInit == false, MFX_ERR_UNDEFINED_BEHAVIOR);
 
-    mfxExtLAControl *pControl = (mfxExtLAControl *) GetExtBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_LOOKAHEAD_CTRL);
+    auto pControl = (mfxExtLAControl *) GetExtBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_LOOKAHEAD_CTRL);
+    MFX_CHECK_NULL_PTR1(pControl);
+
     m_LaControl = *pControl;
     bPyramid = (m_LaControl.BPyramid == MFX_CODINGOPTION_ON);
 
@@ -446,7 +450,7 @@ mfxStatus VideoENC_LA::Init(mfxVideoParam *par)
         MFX_CHECK_STS (InitEncoderParameters(par, &par_enc));    
         m_video = par_enc;
     
-         ENCODE_CAPS hwCaps = {};
+         MFX_ENCODE_CAPS hwCaps = {};
         //MfxHwH264Encode::QueryHwCaps(m_core, hwCaps, MSDK_Private_Guid_Encode_AVC_Query);
         InitHWCaps(hwCaps);
         sts = MfxHwH264Encode::CheckVideoParam(m_video, hwCaps, m_core->IsExternalFrameAllocator(), m_core->GetHWType());
@@ -471,7 +475,7 @@ mfxStatus VideoENC_LA::Init(mfxVideoParam *par)
     mfxFrameAllocRequest request = { };
     request.Info = m_video.mfx.FrameInfo;
 
-    request.Info.Width  = m_video.calcParam.widthLa / 16 * sizeof(MfxHwH264Encode::SVCPAKObject);
+    request.Info.Width  = m_video.calcParam.widthLa / 16 * sizeof(MfxHwH264Encode::LAOutObject);
     request.Info.Height = m_video.calcParam.widthLa/ 16;
     request.Info.FourCC = MFX_FOURCC_P8;
     request.Type        = MfxHwH264Encode::MFX_MEMTYPE_D3D_INT;
@@ -480,7 +484,7 @@ mfxStatus VideoENC_LA::Init(mfxVideoParam *par)
     sts = m_mb.AllocCmBuffersUp(m_cmDevice, request);
     MFX_CHECK_STS(sts);
 
-    request.Info.Width  = sizeof(MfxHwH264Encode::SVCEncCURBEData);
+    request.Info.Width  = sizeof(MfxHwH264Encode::CURBEData);
     request.Info.Height = 1;
     request.Info.FourCC = MFX_FOURCC_P8;
     request.Type        = MfxHwH264Encode::MFX_MEMTYPE_D3D_INT;
@@ -502,8 +506,6 @@ mfxStatus VideoENC_LA::Init(mfxVideoParam *par)
         MFX_CHECK_STS(sts);
     }
     
-     mfxExtOpaqueSurfaceAlloc * extOpaq =  (mfxExtOpaqueSurfaceAlloc *)GetExtBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_OPAQUE_SURFACE_ALLOCATION);
-
     if (m_video.IOPattern == MFX_IOPATTERN_IN_SYSTEM_MEMORY)
     {
         request.Type        = MfxHwH264Encode::MFX_MEMTYPE_D3D_INT;
@@ -514,6 +516,9 @@ mfxStatus VideoENC_LA::Init(mfxVideoParam *par)
     }
     else if (m_video.IOPattern == MFX_IOPATTERN_IN_OPAQUE_MEMORY)
     {
+        auto extOpaq = (mfxExtOpaqueSurfaceAlloc *)GetExtBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_OPAQUE_SURFACE_ALLOCATION);
+        MFX_CHECK_NULL_PTR1(extOpaq);
+
         request.Type        = extOpaq->In.Type;
         request.NumFrameMin = extOpaq->In.NumSurface;
 
@@ -1629,10 +1634,10 @@ namespace MfxHwH264EncodeHW
     mfxU32 Map44LutValueBack(mfxU32 val);
     mfxU16 GetVmeMvCostP(
         mfxU32 const         lutMv[65],
-        MfxHwH264Encode::SVCPAKObject const & mb);
+        MfxHwH264Encode::LAOutObject const & mb);
     mfxU16 GetVmeMvCostB(
         mfxU32 const         lutMv[65],
-        MfxHwH264Encode::SVCPAKObject const & mb);
+        MfxHwH264Encode::LAOutObject const & mb);
 
 };
     mfxI32 CalcDistScaleFactor(
@@ -1651,7 +1656,7 @@ namespace MfxHwH264EncodeHW
 
 
 void CmContextLA::SetCurbeData(
-    MfxHwH264Encode::SVCEncCURBEData & curbeData,
+    MfxHwH264Encode::CURBEData & curbeData,
     sLADdiTask const &   task,
     mfxU32            qp)
 {
@@ -1673,7 +1678,7 @@ void CmContextLA::SetCurbeData(
     else if (!transformFlag)
         skipVal /= 2;
 
-    MfxHwH264Encode::mfxVMEUNIIn costs = {0};
+    MfxHwH264Encode::mfxVMEUNIIn costs {};
     SetCosts(costs, frameType, qp, intraSad, ftqBasedSkip);
 
     MfxHwH264Encode::mfxVMEIMEIn spath;
@@ -1910,7 +1915,7 @@ CmEvent * CmContextLA::RunVme(sLADdiTask const & task,
 
     CmKernel * kernelPreMe = SelectKernelPreMe(task.m_TaskInfo.InputFrame.frameType);
 
-    MfxHwH264Encode::SVCEncCURBEData curbeData;
+    MfxHwH264Encode::CURBEData curbeData;
     SetCurbeData(curbeData, task, qp);
     Write(task.m_cmCurbe, &curbeData);
 
@@ -1949,14 +1954,14 @@ mfxStatus CmContextLA::QueryVme(sLADdiTask const & task,
     else if(status != CM_SUCCESS)
         throw MfxHwH264Encode::CmRuntimeError();
 
-    MfxHwH264Encode::SVCPAKObject * cmMb = (MfxHwH264Encode::SVCPAKObject *)task.m_cmMbSys;
+    MfxHwH264Encode::LAOutObject * cmMb = (MfxHwH264Encode::LAOutObject *)task.m_cmMbSys;
     MfxHwH264Encode::VmeData *      cur  = task.m_Curr.VmeData;
 
     { MFX_AUTO_LTRACE(MFX_TRACE_LEVEL_INTERNAL, "Compensate costs");
     MfxHwH264Encode::mfxVMEUNIIn const & costs = SelectCosts(task.m_TaskInfo.InputFrame.frameType);
     for (size_t i = 0; i < cur->mb.size(); i++)
     {
-        MfxHwH264Encode::SVCPAKObject & mb = cmMb[i];
+        MfxHwH264Encode::LAOutObject & mb = cmMb[i];
 
         if (mb.IntraMbFlag)
         {

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 Intel Corporation
+// Copyright (c) 2017-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -129,6 +129,10 @@ bool CmCopyWrapper::isSinglePlainFormat(mfxU32 format)
     case MFX_FOURCC_Y210:
     case MFX_FOURCC_Y410:
 #endif
+#ifdef MFX_ENABLE_RGBP
+    case MFX_FOURCC_RGBP:
+#endif
+
         return true;
     }
     return false;
@@ -2613,26 +2617,24 @@ mfxStatus CmCopyWrapper::InitializeSwapKernels(eMFXHWType hwtype)
     switch (hwtype)
     {
 #ifdef MFX_ENABLE_KERNELS
-#if !(defined(AS_VPP_PLUGIN) || defined(UNIFIED_PLUGIN) || defined(AS_H264LA_PLUGIN))
     case MFX_HW_BDW:
     case MFX_HW_CHT:
-        cmSts = m_pCmDevice->LoadProgram((void*)cht_copy_kernel_genx,sizeof(cht_copy_kernel_genx),m_pCmProgram,"nojitter");
+        cmSts = m_pCmDevice->LoadProgram((void*)genx_copy_kernel_gen8,sizeof(genx_copy_kernel_gen8),m_pCmProgram,"nojitter");
         break;
-#endif
     case MFX_HW_SCL:
     case MFX_HW_APL:
     case MFX_HW_KBL:
     case MFX_HW_CFL:
-        cmSts = m_pCmDevice->LoadProgram((void*)skl_copy_kernel_genx,sizeof(skl_copy_kernel_genx),m_pCmProgram,"nojitter");
+        cmSts = m_pCmDevice->LoadProgram((void*)genx_copy_kernel_gen9,sizeof(genx_copy_kernel_gen9),m_pCmProgram,"nojitter");
         break;
     case MFX_HW_CNL:
-        cmSts = m_pCmDevice->LoadProgram((void*)cnl_copy_kernel_genx,sizeof(cnl_copy_kernel_genx),m_pCmProgram,"nojitter");
+        cmSts = m_pCmDevice->LoadProgram((void*)genx_copy_kernel_gen10,sizeof(genx_copy_kernel_gen10),m_pCmProgram,"nojitter");
         break;
     case MFX_HW_ICL:
-        cmSts = m_pCmDevice->LoadProgram((void*)icl_copy_kernel_genx,sizeof(icl_copy_kernel_genx),m_pCmProgram,"nojitter");
+        cmSts = m_pCmDevice->LoadProgram((void*)genx_copy_kernel_gen11,sizeof(genx_copy_kernel_gen11),m_pCmProgram,"nojitter");
         break;
     case MFX_HW_ICL_LP:
-        cmSts = m_pCmDevice->LoadProgram((void*)icllp_copy_kernel_genx,sizeof(icllp_copy_kernel_genx),m_pCmProgram,"nojitter");
+        cmSts = m_pCmDevice->LoadProgram((void*)genx_copy_kernel_gen11lp,sizeof(genx_copy_kernel_gen11lp),m_pCmProgram,"nojitter");
         break;
 #endif
     default:
@@ -3223,6 +3225,13 @@ mfxStatus CmCopyWrapper::CopyVideoToSys(mfxFrameSurface1 *pDst, mfxFrameSurface1
 
         mfxI64 verticalPitch = (mfxI64)(pDst->Data.UV - pDst->Data.Y);
         verticalPitch = (verticalPitch % dstPitch)? 0 : verticalPitch / dstPitch;
+#ifdef MFX_ENABLE_RGBP
+        if (pDst->Info.FourCC == MFX_FOURCC_RGBP)
+        {
+            verticalPitch = (mfxI64)(pDst->Data.G - pDst->Data.B);
+            verticalPitch = (verticalPitch % dstPitch)? 0 : verticalPitch / dstPitch;
+        }
+#endif
 
         if (isNeedShift(pSrc, pDst) && CM_ALIGNED(dstPtr) && CM_SUPPORTED_COPY_SIZE(roi) && verticalPitch >= pDst->Info.Height && verticalPitch <= 16384)
         {

@@ -1,5 +1,5 @@
 /******************************************************************************\
-Copyright (c) 2005-2018, Intel Corporation
+Copyright (c) 2005-2019, Intel Corporation
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -691,15 +691,18 @@ mfxStatus FEI_EncodeInterface::EncodeOneFrame(iTask* eTask)
 
     mfxStatus sts = MFX_ERR_NONE;
 
-    // ENC_in.InSurface always holds full-res surface
-    mfxFrameSurface1* encodeSurface = eTask ? eTask->ENC_in.InSurface : NULL;
+    // ENC_in.InSurface always holds full-res surface.
+    // eTask=NULL is valid for the case of draining encoder frames when input is in display order.
+    mfxFrameSurface1* encodeSurface = eTask ? eTask->ENC_in.InSurface : nullptr;
     if (encodeSurface) // no need to do this for buffered frames
     {
         sts = InitFrameParams(eTask);
         MSDK_CHECK_STATUS(sts, "FEI ENCODE: InitFrameParams failed");
     }
 
-    for (int i = 0; i < 1 + m_bSingleFieldMode; ++i)
+    int numberOfCalls = (m_bSingleFieldMode && (!eTask || eTask->m_fieldPicFlag)) ? 2 : 1;
+
+    for (int i = 0; i < numberOfCalls; ++i)
     {
         for (;;) {
             // at this point surface for encoder contains either a frame from file or a frame processed by vpp
@@ -759,7 +762,7 @@ mfxStatus FEI_EncodeInterface::EncodeOneFrame(iTask* eTask)
 
         MSDK_BREAK_ON_ERROR(sts);
 
-    } // for (int i = 0; i < 1 + m_bSingleFieldMode; ++i)
+    } // for (int i = 0; i < numberOfCalls; ++i)
 
     if (sts == MFX_ERR_MORE_DATA)
     {

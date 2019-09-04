@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,13 +26,8 @@
 namespace MfxHwVP9Encode
 {
 
-    GUID GetGuid(VP9MfxVideoParam  par)
+    GUID GetGuid(VP9MfxVideoParam const & par)
     {
-        if (par.mfx.CodecProfile == 0)
-        {
-            SetDefailtsForProfileAndFrameInfo(par);
-        }
-
         // Currently we don't support LP=OFF
         // so it is mapped to GUID_NULL
         // it will cause Query/Init fails with Unsupported
@@ -62,7 +57,7 @@ namespace MfxHwVP9Encode
         }
     }
 
-    mfxStatus QueryCapsAndPlatform(mfxCoreInterface * pCore, ENCODE_CAPS_VP9 & caps, mfxPlatform & platform, GUID guid, mfxU32 width, mfxU32 height)
+    mfxStatus QueryCaps(VideoCORE* pCore, ENCODE_CAPS_VP9 & caps, GUID guid, mfxU32 width, mfxU32 height)
     {
         std::unique_ptr<DriverEncoder> ddi;
 
@@ -73,9 +68,6 @@ namespace MfxHwVP9Encode
         MFX_CHECK_STS(sts);
 
         sts = ddi.get()->QueryEncodeCaps(caps);
-        MFX_CHECK_STS(sts);
-
-        sts = ddi.get()->QueryPlatform(platform);
         MFX_CHECK_STS(sts);
 
         return MFX_ERR_NONE;
@@ -383,7 +375,7 @@ namespace MfxHwVP9Encode
         mfxU8 maxLog2TileCols = 1;
         mfxU8 ones;
 
-        const mfxU8 sb64Cols = (AlignValue(framePar.modeInfoCols, 1 << MI_BLOCK_SIZE_LOG2)) >> MI_BLOCK_SIZE_LOG2;
+        const mfxU8 sb64Cols = (mfx::align2_value(framePar.modeInfoCols, 1 << MI_BLOCK_SIZE_LOG2)) >> MI_BLOCK_SIZE_LOG2;
         while ((MAX_TILE_WIDTH_B64 << minLog2TileCols) < sb64Cols)
         {
             minLog2TileCols ++;

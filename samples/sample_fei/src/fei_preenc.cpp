@@ -1,5 +1,5 @@
 /******************************************************************************\
-Copyright (c) 2005-2018, Intel Corporation
+Copyright (c) 2005-2019, Intel Corporation
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -791,7 +791,8 @@ mfxStatus FEI_PreencInterface::ProcessMultiPreenc(iTask* eTask)
         isDownsamplingNeeded = false;
 
         // Doing PreEnc
-        for (int i = 0; i < 1 + m_bSingleFieldMode; ++i)
+        int numberOfCalls = (m_bSingleFieldMode && eTask->m_fieldPicFlag) ? 2 : 1;
+        for (int i = 0; i < numberOfCalls; ++i)
         {
             // Attach extension buffers for current field
             // (in double-field mode both calls will return equal sets, holding buffers for both fields)
@@ -851,7 +852,7 @@ mfxStatus FEI_PreencInterface::ProcessMultiPreenc(iTask* eTask)
 
             MSDK_BREAK_ON_ERROR(sts);
 
-        } // for (int i = 0; i < 1 + m_bSingleFieldMode; ++i)
+        } // for (int i = 0; i < numberOfCalls; ++i)
         MSDK_CHECK_STATUS(sts, "FEI PreENC failed to process frame");
 
         // Store PreEnc output

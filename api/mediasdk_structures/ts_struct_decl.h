@@ -1,15 +1,15 @@
-// Copyright (c) 2018 Intel Corporation
-// 
+// Copyright (c) 2018-2019 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -413,22 +413,10 @@ STRUCT(mfxExtAvcTemporalLayers,
     FIELD_S(mfxExtAvcTemporalLayers_Layer, Layer)
 )
 
-#if (MFX_VERSION >= MFX_VERSION_NEXT)
-
-STRUCT(mfxExtEncoderCapability,
-    FIELD_S(mfxExtBuffer, Header)
-    FIELD_T(mfxU32, MBPerSec)
-    FIELD_T(mfxU16, InputMemoryTiling)
-)
-
-#else
-
 STRUCT(mfxExtEncoderCapability,
     FIELD_S(mfxExtBuffer, Header)
     FIELD_T(mfxU32, MBPerSec)
 )
-
-#endif
 
 STRUCT(mfxExtEncoderResetOption,
     FIELD_S(mfxExtBuffer, Header)
@@ -1268,6 +1256,18 @@ STRUCT(mfxExtVP9Param,
     FIELD_T(mfxU16      , NumTileColumns)
     FIELD_T(mfxU16      , DynamicScaling)
 )
+#elif (MFX_VERSION >= 1029)
+STRUCT(mfxExtVP9Param,
+    FIELD_S(mfxExtBuffer, Header)
+    FIELD_T(mfxU16      , FrameWidth)
+    FIELD_T(mfxU16      , FrameHeight)
+    FIELD_T(mfxU16      , WriteIVFHeaders)
+    FIELD_T(mfxI16      , QIndexDeltaLumaDC)
+    FIELD_T(mfxI16      , QIndexDeltaChromaAC)
+    FIELD_T(mfxI16      , QIndexDeltaChromaDC)
+    FIELD_T(mfxU16      , NumTileRows)
+    FIELD_T(mfxU16      , NumTileColumns)
+)
 #elif (MFX_VERSION >= 1026)
 STRUCT(mfxExtVP9Param,
     FIELD_S(mfxExtBuffer, Header)
@@ -1349,6 +1349,15 @@ STRUCT(mfxExtEncodedUnitsInfo,
     FIELD_T(mfxU16, NumUnitsAlloc)
     FIELD_T(mfxU16, NumUnitsEncoded)
 )
+
+#if defined(__MFXPCP_H__)
+#if (MFX_VERSION >= 1030)
+STRUCT(mfxExtCencParam,
+    FIELD_S(mfxExtBuffer, Header)
+    FIELD_T(mfxU32      , StatusReportIndex)
+)
+#endif
+#endif // defined(__MFXPCP_H__)
 
 #if defined(__MFXSCD_H__)
 STRUCT(mfxExtSCD,

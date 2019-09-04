@@ -1,15 +1,15 @@
-// Copyright (c) 2017 Intel Corporation
-// 
+// Copyright (c) 2017-2019 Intel Corporation
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -38,6 +38,7 @@
 #include <memory>
 
 #include "mfx_task.h"
+#include "mfxpcp.h"
 
 namespace UMC
 {
@@ -50,6 +51,7 @@ namespace UMC
 
 typedef UMC::VATaskSupplier  MFX_AVC_Decoder;
 
+struct ThreadTaskInfo;
 class VideoDECODE;
 class VideoDECODEH264 : public VideoDECODE
 {
@@ -75,7 +77,7 @@ public:
     virtual mfxStatus GetPayload(mfxU64 *ts, mfxPayload *payload);
     virtual mfxStatus SetSkipMode(mfxSkipMode mode);
 
-    mfxStatus RunThread(void * params, mfxU32 threadNumber);
+     mfxStatus RunThread(ThreadTaskInfo*, mfxU32 /*threadNumber*/);
 
 protected:
     static mfxStatus QueryIOSurfInternal(eMFXPlatform platform, eMFXHWType type, mfxVideoParam *par, mfxFrameAllocRequest *request);

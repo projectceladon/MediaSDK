@@ -1,5 +1,5 @@
 /******************************************************************************\
-Copyright (c) 2005-2018, Intel Corporation
+Copyright (c) 2005-2019, Intel Corporation
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -1506,9 +1506,9 @@ mfxStatus CheckOptions(AppConfig* pConfig)
     }
 
     if (pConfig->bFieldProcessingMode &&
-        !((pConfig->nPicStruct == MFX_PICSTRUCT_FIELD_BFF) || (pConfig->nPicStruct == MFX_PICSTRUCT_FIELD_TFF)))
+        !((pConfig->nPicStruct == MFX_PICSTRUCT_FIELD_BFF) || (pConfig->nPicStruct == MFX_PICSTRUCT_FIELD_TFF) || (pConfig->nPicStruct == MFX_PICSTRUCT_UNKNOWN)))
     {
-        fprintf(stderr, "ERROR: Field Processing mode works only with interlaced content (TFF or BFF)\n");
+        fprintf(stderr, "ERROR: Field Processing mode works only with interlaced content (TFF or BFF) and PAFF (PAFF is supported for transcode only)\n");
         sts = MFX_ERR_UNSUPPORTED;
     }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -48,7 +48,7 @@ static const GUID DXVA2_Intel_LowpowerEncode_VP9_10bit_Profile2 =
 static const GUID DXVA2_Intel_LowpowerEncode_VP9_10bit_Profile3 =
 { 0x353aca91, 0xd945, 0x4c13, {0xae, 0x7e, 0x46, 0x90, 0x60, 0xfa, 0xc8, 0xd8 } };
 
-GUID GetGuid(VP9MfxVideoParam  par);
+GUID GetGuid(VP9MfxVideoParam const & par);
 
 #define DDI_FROM_MAINLINE_DRIVER
 
@@ -105,9 +105,9 @@ typedef struct tagENCODE_CAPS_VP9
 
     class DriverEncoder;
 
-    mfxStatus QueryCapsAndPlatform(mfxCoreInterface * pCore, ENCODE_CAPS_VP9 & caps, mfxPlatform & platform, GUID guid, mfxU32 width, mfxU32 height);
+    mfxStatus QueryCaps(VideoCORE * pCore, ENCODE_CAPS_VP9 & caps, GUID guid, mfxU32 width, mfxU32 height);
 
-    DriverEncoder* CreatePlatformVp9Encoder(mfxCoreInterface * pCore);
+    DriverEncoder* CreatePlatformVp9Encoder(VideoCORE * pCore);
 
     class DriverEncoder
     {
@@ -116,7 +116,7 @@ typedef struct tagENCODE_CAPS_VP9
         virtual ~DriverEncoder(){}
 
         virtual mfxStatus CreateAuxilliaryDevice(
-                        mfxCoreInterface * pCore,
+                        VideoCORE * pCore,
                         GUID               guid,
                         mfxU32             width,
                         mfxU32             height) = 0;
@@ -149,10 +149,6 @@ typedef struct tagENCODE_CAPS_VP9
         virtual
         mfxStatus QueryEncodeCaps(
             ENCODE_CAPS_VP9 & caps) = 0;
-
-        virtual
-        mfxStatus QueryPlatform(
-            mfxPlatform& platform) = 0;
 
         virtual
         mfxStatus QueryStatus(
@@ -216,7 +212,7 @@ typedef struct tagENCODE_CAPS_VP9
 
     inline ENCODE_PACKEDHEADER_DATA MakePackedByteBuffer(mfxU8 * data, mfxU32 size)
     {
-        ENCODE_PACKEDHEADER_DATA desc = { 0 };
+        ENCODE_PACKEDHEADER_DATA desc = {};
         desc.pData = data;
         desc.BufferSize = size;
         desc.DataLength = size;

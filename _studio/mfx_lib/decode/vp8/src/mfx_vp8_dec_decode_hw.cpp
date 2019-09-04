@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,25 @@
 #include "mfx_vp8_dec_decode_common.h"
 
 #define VP8_START_CODE_FOUND(ptr) ((ptr)[0] == 0x9d && (ptr)[1] == 0x01 && (ptr)[2] == 0x2a)
+
+static void SetFrameType(const VP8Defs::vp8_FrameInfo &frame_info, mfxFrameSurface1 &surface_out)
+{
+    auto extFrameInfo = reinterpret_cast<mfxExtDecodedFrameInfo *>(GetExtendedBuffer(surface_out.Data.ExtParam, surface_out.Data.NumExtParam, MFX_EXTBUFF_DECODED_FRAME_INFO));
+    if (extFrameInfo == nullptr)
+        return;
+
+    switch (frame_info.frameType)
+    {
+        case UMC::I_PICTURE:
+            extFrameInfo->FrameType = MFX_FRAMETYPE_I;
+            break;
+        case UMC::P_PICTURE:
+            extFrameInfo->FrameType = MFX_FRAMETYPE_P;
+            break;
+        default:
+            extFrameInfo->FrameType = MFX_FRAMETYPE_UNKNOWN;
+    }
+}
 
 VideoDECODEVP8_HW::VideoDECODEVP8_HW(VideoCORE *p_core, mfxStatus *sts)
     : m_is_initialized(false)
@@ -668,7 +687,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
         return MFX_ERR_MORE_DATA;
 
     bool show_frame;
-    FrameType frame_type;
+    UMC::FrameType frame_type;
 
     if (p_bs->DataLength == 0)
         return MFX_ERR_MORE_DATA;
@@ -682,7 +701,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
     }
 
     mfxU8 *pTemp = p_bs->Data + p_bs->DataOffset;
-    frame_type = (pTemp[0] & 1) ? P_PICTURE : I_PICTURE; // 1 bits
+    frame_type = (pTemp[0] & 1) ? UMC::P_PICTURE : UMC::I_PICTURE; // 1 bits
     show_frame = (pTemp[0] >> 4) & 0x1;
 
     if(p_surface_work->Info.CropW == 0)
@@ -695,13 +714,13 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
         p_surface_work->Info.CropH = m_on_init_video_params.mfx.FrameInfo.CropH;
     }
 
-    if(frame_type == I_PICTURE)
+    if(frame_type == UMC::I_PICTURE)
     {
         sts = PreDecodeFrame(p_bs, p_surface_work);
         MFX_CHECK_STS(sts);
     }
 
-    if (m_firstFrame && frame_type != I_PICTURE)
+    if (m_firstFrame && frame_type != UMC::I_PICTURE)
     {
         MoveBitstreamData(*p_bs, p_bs->DataLength);
         return MFX_ERR_MORE_DATA;
@@ -720,11 +739,11 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
     sts = DecodeFrameHeader(&m_bs);
     MFX_CHECK_STS(sts);
 
-    VideoDataInfo vdInfo;
-    vdInfo.Init(m_frame_info.frameSize.width, m_frame_info.frameSize.height, NV12, 8);
-    FrameMemID memId;
+    UMC::VideoDataInfo vdInfo;
+    vdInfo.Init(m_frame_info.frameSize.width, m_frame_info.frameSize.height, UMC::NV12, 8);
+    UMC::FrameMemID memId;
     UMC::Status umc_sts = m_p_frame_allocator->Alloc(&memId, &vdInfo, 0);
-    if (UMC_OK != umc_sts)
+    if (UMC::UMC_OK != umc_sts)
         return MFX_ERR_MEMORY_ALLOC;
 
     sFrameInfo info;
@@ -735,7 +754,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
     info.altrefIndex = altref_indx;
     info.lastrefIndex = lastrefIndex;
 
-    if (m_frame_info.frameType == I_PICTURE)
+    if (m_frame_info.frameType == UMC::I_PICTURE)
     {
         gold_indx = altref_indx = lastrefIndex = info.currIndex;
     }
@@ -751,6 +770,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
 
             case 2:
                 gold_indx = altref_indx;
+                break;
 
             case 0:
             default:
@@ -765,6 +785,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
 
             case 2:
                 altref_indx = oldgold_indx;
+                break;
 
             case 0:
             default:
@@ -788,7 +809,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
 
     PackHeaders(&m_bs);
 
-    if (m_p_video_accelerator->BeginFrame(memId) == UMC_OK)
+    if (m_p_video_accelerator->BeginFrame(memId) == UMC::UMC_OK)
     {
         m_p_video_accelerator->Execute();
         m_p_video_accelerator->EndFrame();
@@ -796,6 +817,8 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameCheck(mfxBitstream *p_bs, mfxFrameSurfac
 
     sts = GetOutputSurface(pp_surface_out, p_surface_work, memId);
     MFX_CHECK_STS(sts);
+
+    SetFrameType(m_frame_info, **pp_surface_out);
 
     (*pp_surface_out)->Data.Corrupted = 0;
     (*pp_surface_out)->Data.FrameOrder = m_frameOrder;
@@ -955,7 +978,7 @@ void VideoDECODEVP8_HW::DecodeInitDequantization(MFX_VP8_BoolDecoder &dec)
       else
       {
         qp = m_quantInfo.yacQP + m_frame_info.segmentFeatureData[VP8Defs::VP8_ALT_QUANT][segment_id];
-        vp8_CLIP(qp, 0, VP8_MAX_QP);
+        qp = mfx::clamp(qp, 0, VP8_MAX_QP);
       }
     }
     else
@@ -963,13 +986,13 @@ void VideoDECODEVP8_HW::DecodeInitDequantization(MFX_VP8_BoolDecoder &dec)
 
 
     m_quantInfo.yacQ[segment_id]  = qp;
-    m_quantInfo.ydcQ[segment_id]  = vp8_CLIP_value(qp + m_quantInfo.ydcDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.ydcQ[segment_id]  = mfx::clamp(qp + m_quantInfo.ydcDeltaQP,  0, VP8_MAX_QP);
 
-    m_quantInfo.y2acQ[segment_id] = vp8_CLIP_value(qp + m_quantInfo.y2acDeltaQP, 0, VP8_MAX_QP);
-    m_quantInfo.y2dcQ[segment_id] = vp8_CLIP_value(qp + m_quantInfo.y2dcDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.y2acQ[segment_id] = mfx::clamp(qp + m_quantInfo.y2acDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.y2dcQ[segment_id] = mfx::clamp(qp + m_quantInfo.y2dcDeltaQP, 0, VP8_MAX_QP);
 
-    m_quantInfo.uvacQ[segment_id] = vp8_CLIP_value(qp + m_quantInfo.uvacDeltaQP, 0, VP8_MAX_QP);
-    m_quantInfo.uvdcQ[segment_id] = vp8_CLIP_value(qp + m_quantInfo.uvdcDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.uvacQ[segment_id] = mfx::clamp(qp + m_quantInfo.uvacDeltaQP, 0, VP8_MAX_QP);
+    m_quantInfo.uvdcQ[segment_id] = mfx::clamp(qp + m_quantInfo.uvdcDeltaQP, 0, VP8_MAX_QP);
 
 
   }
@@ -995,7 +1018,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameHeader(mfxBitstream *in)
 
     //suppose that Intraframes -> I_PICTURE ( == VP8_KEY_FRAME)
     //             Interframes -> P_PICTURE
-    m_frame_info.frameType = (data_in[0] & 1) ? P_PICTURE : I_PICTURE; // 1 bits
+    m_frame_info.frameType = (data_in[0] & 1) ? UMC::P_PICTURE : UMC::I_PICTURE; // 1 bits
     version = (data_in[0] >> 1) & 0x7; // 3 bits
     m_frame_info.version = version;
     m_frame_info.showFrame = (data_in[0] >> 4) & 0x01; // 1 bits
@@ -1035,7 +1058,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameHeader(mfxBitstream *in)
                   reinterpret_cast<char*>(m_frameProbs.mvContexts));
     }
 
-    if (m_frame_info.frameType == I_PICTURE)  // if VP8_KEY_FRAME
+    if (m_frame_info.frameType == UMC::I_PICTURE)  // if VP8_KEY_FRAME
     {
         if (first_partition_size > in->DataLength - 10)
             return MFX_ERR_MORE_DATA;
@@ -1092,7 +1115,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameHeader(mfxBitstream *in)
 
     m_boolDecoder[VP8_FIRST_PARTITION].init(data_in, (int32_t) (data_in_end - data_in));
 
-    if (m_frame_info.frameType == I_PICTURE)  // if VP8_KEY_FRAME
+    if (m_frame_info.frameType == UMC::I_PICTURE)  // if VP8_KEY_FRAME
     {
         uint32_t bits = m_boolDecoder[VP8_FIRST_PARTITION].decode(2);
 
@@ -1181,7 +1204,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameHeader(mfxBitstream *in)
 
     DecodeInitDequantization(m_boolDecoder[VP8_FIRST_PARTITION]);
 
-    if (m_frame_info.frameType != I_PICTURE) // data in header for non-KEY frames
+    if (m_frame_info.frameType != UMC::I_PICTURE) // data in header for non-KEY frames
     {
         m_refresh_info.refreshRefFrame = (uint8_t)m_boolDecoder[VP8_FIRST_PARTITION].decode(2);
 
@@ -1203,7 +1226,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameHeader(mfxBitstream *in)
     if (!m_refresh_info.refreshProbabilities)
         m_frameProbs_saved = m_frameProbs;
 
-    if (m_frame_info.frameType != I_PICTURE)
+    if (m_frame_info.frameType != UMC::I_PICTURE)
     {
         m_refresh_info.refreshLastFrame = (uint8_t)m_boolDecoder[VP8_FIRST_PARTITION].decode();
     }
@@ -1234,7 +1257,7 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameHeader(mfxBitstream *in)
     if (m_frame_info.mbSkipEnabled)
         m_frame_info.skipFalseProb = (uint8_t)m_boolDecoder[VP8_FIRST_PARTITION].decode(8);
 
-    if (m_frame_info.frameType != I_PICTURE)
+    if (m_frame_info.frameType != UMC::I_PICTURE)
     {
         m_frame_info.intraProb = (uint8_t)m_boolDecoder[VP8_FIRST_PARTITION].decode(8);
         m_frame_info.lastProb  = (uint8_t)m_boolDecoder[VP8_FIRST_PARTITION].decode(8);
@@ -1284,16 +1307,25 @@ mfxStatus VideoDECODEVP8_HW::DecodeFrameHeader(mfxBitstream *in)
         while (++i < 2);
     }
 
+#if !defined(ANDROID) || (MFX_ANDROID_VERSION >= MFX_P)
     // Header info consumed bits
     m_frame_info.entropyDecSize = m_boolDecoder[VP8_FIRST_PARTITION].pos() * 8 - 3*8 - m_boolDecoder[VP8_FIRST_PARTITION].bitcount();
 
     // Subtract completely consumed bytes + current byte. Current is completely consumed if bitcount is 8.
     m_frame_info.firstPartitionSize = first_partition_size - ((m_frame_info.entropyDecSize + 7) >> 3);
+#else
+    // On Android O we use old version of driver and should use special code for 1st partition size computation (for count == 8)
+    // Header info consumed bits
+    m_frame_info.entropyDecSize = m_boolDecoder[VP8_FIRST_PARTITION].pos() * 8 - 16 - m_boolDecoder[VP8_FIRST_PARTITION].bitcount();
+
+    int fix = (m_boolDecoder[VP8_FIRST_PARTITION].bitcount() & 0x7) ? 1 : 0;
+    m_frame_info.firstPartitionSize = m_frame_info.firstPartitionSize - (m_boolDecoder[VP8_FIRST_PARTITION].pos() - 3 + fix);
+#endif
 
     return MFX_ERR_NONE;
 }
 
-mfxStatus VideoDECODEVP8_HW::GetFrame(MediaData* /*in*/, FrameData** /*out*/)
+mfxStatus VideoDECODEVP8_HW::GetFrame(UMC::MediaData* /*in*/, UMC::FrameData** /*out*/)
 {
     return MFX_ERR_NONE;
 }

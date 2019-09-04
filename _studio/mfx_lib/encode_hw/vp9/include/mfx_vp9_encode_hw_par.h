@@ -36,13 +36,11 @@ mfxStatus CheckParameters(VP9MfxVideoParam &par, ENCODE_CAPS_VP9 const &caps);
 
 mfxStatus CheckParametersAndSetDefaults(
     VP9MfxVideoParam &par,
-    ENCODE_CAPS_VP9 const &caps,
-    mfxPlatform const & platform);
+    ENCODE_CAPS_VP9 const &caps);
 
 mfxStatus SetDefaults(
     VP9MfxVideoParam &par,
-    ENCODE_CAPS_VP9 const &caps,
-    mfxPlatform const & platform);
+    ENCODE_CAPS_VP9 const &caps);
 
 void InheritDefaults(VP9MfxVideoParam& defaultsDst, VP9MfxVideoParam const & defaultsSrc);
 
@@ -58,7 +56,7 @@ mfxStatus CheckAndFixCtrl(VP9MfxVideoParam const & video,
 
 mfxStatus CheckBitstream(VP9MfxVideoParam const & video, mfxBitstream * bs);
 
-void SetDefailtsForProfileAndFrameInfo(VP9MfxVideoParam& par);
+void SetDefaultsForProfileAndFrameInfo(VP9MfxVideoParam& par);
 
 bool CheckAndFixQIndexDelta(mfxI16& qIndexDelta, mfxU16 qIndex);
 } // MfxHwVP9Encode

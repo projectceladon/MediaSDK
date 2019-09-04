@@ -27,7 +27,6 @@
 #include <list>
 #include "umc_h265_dec_defs.h"
 #include "umc_h265_bitstream_headers.h"
-#include "umc_automatic_mutex.h"
 #include "umc_h265_heap.h"
 
 namespace UMC_HEVC_DECODER
@@ -152,7 +151,10 @@ public:  // DEBUG !!!! should remove dependence
     H265HeadersBitstream m_BitStream;                                  // (H265Bitstream) slice bit stream
 
     // Obtain bit stream object
-    H265HeadersBitstream *GetBitStream(){return &m_BitStream;}
+    H265HeadersBitstream* GetBitStream()
+    { return &m_BitStream; }
+    H265HeadersBitstream const* GetBitStream() const
+    { return &m_BitStream; }
 
 protected:
     const H265PicParamSet* m_pPicParamSet;                      // (H265PicParamSet *) pointer to array of picture parameters sets

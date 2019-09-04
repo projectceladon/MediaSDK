@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,15 +28,6 @@ namespace MfxHwVP9Encode
 #if defined (MFX_VA_LINUX)
 #include <va/va.h>
 #include <va/va_enc_vp9.h>
-
-#define MFX_DESTROY_VABUFFER(vaBufferId, vaDisplay)    \
-do {                                               \
-    if (vaBufferId != VA_INVALID_ID)               \
-    {                                              \
-        vaDestroyBuffer(vaDisplay, vaBufferId);    \
-        vaBufferId = VA_INVALID_ID;                \
-    }                                              \
-} while (0)
 
     enum {
         MFX_FOURCC_VP9_NV12    = MFX_MAKEFOURCC('V','P','8','N'),
@@ -72,7 +63,7 @@ do {                                               \
 
         virtual
         mfxStatus CreateAuxilliaryDevice(
-            mfxCoreInterface* core,
+            VideoCORE* core,
             GUID       guid,
             mfxU32     width,
             mfxU32     height);
@@ -117,7 +108,7 @@ do {                                               \
 
         virtual
         mfxStatus QueryPlatform(
-            mfxPlatform& platform);
+            eMFXHWType& platform);
 
         virtual
         mfxStatus QueryStatus(
@@ -133,7 +124,7 @@ do {                                               \
         VAAPIEncoder(const VAAPIEncoder&); // no implementation
         VAAPIEncoder& operator=(const VAAPIEncoder&); // no implementation
 
-        mfxCoreInterface*  m_pmfxCore;
+        VideoCORE*  m_pmfxCore;
         VP9MfxVideoParam    m_video;
 
         // encoder specific. can be encapsulated by auxDevice class
@@ -163,6 +154,7 @@ do {                                               \
 
         // max number of temp layers is 8, but now supported only 4
         VABufferID m_tempLayersBufferId;
+        bool       m_tempLayersParamsReset;
         std::vector<VABufferID> m_frameRateBufferIds; // individual buffer for every temporal layer
         std::vector<VABufferID> m_rateCtrlBufferIds;  // individual buffer for every temporal layer
 
@@ -180,7 +172,7 @@ do {                                               \
         bool m_isBrcResetRequired;
 
         ENCODE_CAPS_VP9 m_caps;
-        mfxPlatform m_platform;
+        eMFXHWType m_platform;
 
         UMC::Mutex                      m_guard;
     };

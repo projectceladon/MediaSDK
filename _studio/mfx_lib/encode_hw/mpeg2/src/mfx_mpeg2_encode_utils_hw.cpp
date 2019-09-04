@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Intel Corporation
+// Copyright (c) 2017-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -948,6 +948,8 @@ namespace MPEG2EncoderHW
         CHECK_CODEC_ID(par->mfx.CodecId, MFX_CODEC_MPEG2);
         MFX_CHECK (CheckExtendedBuffers(par) == MFX_ERR_NONE, MFX_ERR_INVALID_VIDEO_PARAM);
 
+        mfxStatus sts = core->IsGuidSupported(DXVA2_Intel_Encode_MPEG2, par, true);
+        MFX_CHECK_STS(sts);
 
         mfxExtCodingOption* ext = GetExtCodingOptions(par->ExtParam, par->NumExtParam);
         mfxExtCodingOptionSPSPPS* pSPSPPS = GetExtCodingOptionsSPSPPS (par->ExtParam, par->NumExtParam);
@@ -976,16 +978,11 @@ namespace MPEG2EncoderHW
 
         ENCODE_CAPS EncCaps = {};
 
-        mfxStatus sts = CheckHwCaps(core, par, ext, &EncCaps);
+        sts = CheckHwCaps(core, par, ext, &EncCaps);
         MFX_CHECK_STS(sts);
 
-        if (par->mfx.FrameInfo.Width > 0x1fff || (par->mfx.FrameInfo.Width & 0x0f) != 0)
-        {
-            return MFX_ERR_INVALID_VIDEO_PARAM;
-        }
         mfxU32 mask = (par->mfx.FrameInfo.PicStruct & MFX_PICSTRUCT_PROGRESSIVE)? 0x0f:0x1f;
-
-        if (par->mfx.FrameInfo.Height > 0x1fff || (par->mfx.FrameInfo.Height & mask) != 0 )
+        if ((par->mfx.FrameInfo.Width & 0x0f) != 0 || (par->mfx.FrameInfo.Height & mask) != 0 )
         {
             return MFX_ERR_INVALID_VIDEO_PARAM;
         }
@@ -1181,24 +1178,20 @@ namespace MPEG2EncoderHW
         {
             bInvalid = true;
         }
-        if ((pFrameInfo->Width  & 15) !=0)
+        if ((pFrameInfo->Width & 15) != 0)
             return MFX_ERR_INVALID_VIDEO_PARAM;
 
-        pFrameInfo->Width = pFrameInfo->CropW ? ((pFrameInfo->CropW + 15)/16)*16 : pFrameInfo->Width;
+        if (pFrameInfo->CropW)
+            pFrameInfo->Width = mfx::align2_value(pFrameInfo->CropW, 16);
 
-        if (bProgressiveSequence)
-        {
-            if ((pFrameInfo->Height  & 15) !=0)
-                return MFX_ERR_INVALID_VIDEO_PARAM;
-            pFrameInfo->Height = pFrameInfo->CropH ? ((pFrameInfo->CropH + 15)/16)*16 : pFrameInfo->Height;
+        mfxU32 heightAlignment = bProgressiveSequence ? 16 : 32;
 
-        }
-        else
-        {
-            if ((pFrameInfo->Height  & 31) !=0)
-                return MFX_ERR_INVALID_VIDEO_PARAM;
-            pFrameInfo->Height = pFrameInfo->CropH ? ((pFrameInfo->CropH + 31)/32)*32 : pFrameInfo->Height;
-        }
+        if ((pFrameInfo->Height & (heightAlignment - 1)) != 0)
+            return MFX_ERR_INVALID_VIDEO_PARAM;
+
+        if (pFrameInfo->CropH)
+            pFrameInfo->Height = mfx::align2_value(pFrameInfo->CropH, heightAlignment);
+
         if (m_bInitialized == false)
         {
             m_InitWidth  = pFrameInfo->Width;

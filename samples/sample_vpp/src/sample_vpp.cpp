@@ -1,5 +1,5 @@
 /******************************************************************************\
-Copyright (c) 2005-2018, Intel Corporation
+Copyright (c) 2005-2019, Intel Corporation
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -143,6 +143,8 @@ static
     pParams->aceParam.clear();              pParams->aceParam.push_back(            *pDefaultFiltersParam->pContrastParam       );
     pParams->steParam.clear();              pParams->steParam.push_back(            *pDefaultFiltersParam->pSkinParam           );
     pParams->istabParam.clear();            pParams->istabParam.push_back(          *pDefaultFiltersParam->pImgStabParam        );
+
+    pParams->colorfillParam.clear();        pParams->colorfillParam.push_back(      *pDefaultFiltersParam->pColorfillParam      );
 
     // ROI check
     pParams->roiCheckParam.mode = ROI_FIX_TO_FIX; // ROI check is disabled
@@ -355,6 +357,7 @@ int main(int argc, msdk_char *argv[])
     sSVCParam                 defaultSVCParam             = { {}, VPP_FILTER_DISABLED };
     sVideoSignalInfoParam     defaultVideoSignalInfoParam;
     sMirroringParam           defaultMirroringParam;
+    sColorFillParam           defaultColorfillParam;
 
     sFiltersParam             defaultFiltersParam =
     { &defaultOwnFrameInfo,
@@ -376,7 +379,9 @@ int main(int argc, msdk_char *argv[])
     &defaultImgStabParam,
     &defaultSVCParam,
     &defaultVideoSignalInfoParam,
-    &defaultMirroringParam};
+    &defaultMirroringParam,
+    &defaultColorfillParam};
+
 
     //reset pointers to the all internal resources
     MSDK_ZERO_MEMORY(Resources);
@@ -858,7 +863,7 @@ int main(int argc, msdk_char *argv[])
                     extBuffPtrStorage.push_back((mfxExtBuffer *)&m_ProcAmpData[pOutSurf]);
                     m_extBuffPtrStorageForOutputSurf[pOutSurf] = extBuffPtrStorage;
                     pOutSurf->Data.ExtParam = m_extBuffPtrStorageForOutputSurf[pOutSurf].data();
-                    pOutSurf->Data.NumExtParam = m_extBuffPtrStorageForOutputSurf[pOutSurf].size();
+                    pOutSurf->Data.NumExtParam = (mfxU16)m_extBuffPtrStorageForOutputSurf[pOutSurf].size();
                 }
                 nOutFrames++;
 #endif
@@ -1045,7 +1050,7 @@ int main(int argc, msdk_char *argv[])
                     extBuffPtrStorage.push_back((mfxExtBuffer *)&m_ProcAmpData[pOutSurf]);
                     m_extBuffPtrStorageForOutputSurf[pOutSurf] = extBuffPtrStorage;
                     pOutSurf->Data.ExtParam = m_extBuffPtrStorageForOutputSurf[pOutSurf].data();
-                    pOutSurf->Data.NumExtParam = m_extBuffPtrStorageForOutputSurf[pOutSurf].size();
+                    pOutSurf->Data.NumExtParam = (mfxU16)m_extBuffPtrStorageForOutputSurf[pOutSurf].size();
                 }
                 nOutFrames++;
 #endif

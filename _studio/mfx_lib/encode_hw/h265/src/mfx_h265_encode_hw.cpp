@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,21 +29,10 @@ namespace MfxHwH265Encode
 {
 
 mfxStatus CheckInputParam(mfxVideoParam *inPar, mfxVideoParam *outPar = NULL);
-mfxStatus CheckVideoParam(MfxVideoParam & par, ENCODE_CAPS_HEVC const & caps, bool bInit = false);
-void      SetDefaults    (MfxVideoParam & par, ENCODE_CAPS_HEVC const & hwCaps);
+mfxStatus CheckVideoParam(MfxVideoParam & par, MFX_ENCODE_CAPS_HEVC const & caps, bool bInit = false);
+void      SetDefaults    (MfxVideoParam & par, MFX_ENCODE_CAPS_HEVC const & hwCaps);
 void      InheritDefaultValues(MfxVideoParam const & parInit, MfxVideoParam &  parReset);
 bool      CheckTriStateOption(mfxU16 & opt);
-
-
-inline mfxStatus GetWorstSts(mfxStatus sts1, mfxStatus sts2)
-{
-    // WRN statuses > 0, ERR statuses < 0, ERR_NONE = 0
-
-    mfxStatus sts_max = (std::max)(sts1, sts2),
-              sts_min = (std::min)(sts1, sts2);
-
-    return sts_min == MFX_ERR_NONE ? sts_max : sts_min;
-}
 
 mfxU16 MaxRec(MfxVideoParam const & par)
 {
@@ -120,14 +109,20 @@ bool GetRecInfo(const MfxVideoParam& par, mfxFrameInfo& rec)
     if (CO3.TargetChromaFormatPlus1 == (1 + MFX_CHROMAFORMAT_YUV444) && CO3.TargetBitDepthLuma == 10)
     {
         rec.FourCC = MFX_FOURCC_Y410;
-        rec.Width /= 2;
-        rec.Height *= 3;
+        /* Pitch = 4*W for Y410 format
+           Pitch need to align on 256
+           So, width aligment is 256/4 = 64 */
+        rec.Width = (mfxU16)mfx::align2_value(rec.Width, 256/4);
+        rec.Height = (mfxU16)mfx::align2_value(rec.Height * 3 / 2, 8);
     }
     else if (CO3.TargetChromaFormatPlus1 == (1 + MFX_CHROMAFORMAT_YUV444) && CO3.TargetBitDepthLuma == 8)
     {
         rec.FourCC = MFX_FOURCC_AYUV;
-        rec.Width /= 4;
-        rec.Height *= 3;
+        /* Pitch = 4*W for AYUV format
+           Pitch need to align on 512
+           So, width aligment is 512/4 = 128 */
+        rec.Width = (mfxU16)mfx::align2_value(rec.Width, 512 / 4);
+        rec.Height = (mfxU16)mfx::align2_value(rec.Height *3/4, 8);
     }
     else if (CO3.TargetChromaFormatPlus1 == (1 + MFX_CHROMAFORMAT_YUV422) && CO3.TargetBitDepthLuma == 10)
     {
@@ -144,7 +139,7 @@ bool GetRecInfo(const MfxVideoParam& par, mfxFrameInfo& rec)
     else if (CO3.TargetChromaFormatPlus1 == (1 + MFX_CHROMAFORMAT_YUV420) && CO3.TargetBitDepthLuma == 10)
     {
         rec.FourCC = MFX_FOURCC_NV12;
-        rec.Width = Align(rec.Width, 32) * 2;
+        rec.Width  = mfx::align2_value(rec.Width, 32) * 2;
     }
     else if (CO3.TargetChromaFormatPlus1 == (1 + MFX_CHROMAFORMAT_YUV420) && CO3.TargetBitDepthLuma == 8)
     {
@@ -409,7 +404,7 @@ mfxStatus MFXVideoENCODEH265_HW::QueryIOSurf(VideoCORE *core, mfxVideoParam *par
 
     MfxVideoParam tmp(*par, platform);
 
-    ENCODE_CAPS_HEVC caps = {};
+    MFX_ENCODE_CAPS_HEVC caps = {};
 
     switch (par->IOPattern & MFX_IOPATTERN_IN_MASK)
     {
@@ -427,7 +422,9 @@ mfxStatus MFXVideoENCODEH265_HW::QueryIOSurf(VideoCORE *core, mfxVideoParam *par
 
     (void)SetLowpowerDefault(tmp);
 
-    sts = QueryHwCaps(core, GetGUID(tmp), caps);
+    sts = QueryHwCaps(core, GetGUID(tmp), caps,
+            tmp.m_ext.HEVCParam.PicWidthInLumaSamples,
+            tmp.m_ext.HEVCParam.PicHeightInLumaSamples);
     MFX_CHECK_STS(sts);
 
     MfxHwH265Encode::CheckVideoParam(tmp, caps);
@@ -500,7 +497,7 @@ mfxStatus MFXVideoENCODEH265_HW::Query(VideoCORE *core, mfxVideoParam *in, mfxVi
 
         MfxVideoParam tmp(*in, platform);
 
-        ENCODE_CAPS_HEVC caps = {};
+        MFX_ENCODE_CAPS_HEVC caps = {};
         mfxExtEncoderCapability * enc_cap = ExtBuffer::Get(*in);
 
         if (enc_cap)
@@ -508,7 +505,9 @@ mfxStatus MFXVideoENCODEH265_HW::Query(VideoCORE *core, mfxVideoParam *in, mfxVi
 
         mfxStatus lpsts = SetLowpowerDefault(tmp);
 
-        sts = QueryHwCaps(core, GetGUID(tmp), caps);
+        sts = QueryHwCaps(core, GetGUID(tmp), caps,
+                tmp.m_ext.HEVCParam.PicWidthInLumaSamples,
+                tmp.m_ext.HEVCParam.PicHeightInLumaSamples);
         MFX_CHECK_STS(sts);
 
         mfxExtCodingOptionSPSPPS* pSPSPPS = ExtBuffer::Get(*in);
@@ -621,7 +620,7 @@ mfxStatus    MFXVideoENCODEH265_HW::WaitingForAsyncTasks(bool bResetTasks)
 }
 
 
-mfxStatus  MFXVideoENCODEH265_HW::CheckVideoParam(MfxVideoParam & par, ENCODE_CAPS_HEVC const & caps, bool bInit /*= false*/)
+mfxStatus  MFXVideoENCODEH265_HW::CheckVideoParam(MfxVideoParam & par, MFX_ENCODE_CAPS_HEVC const & caps, bool bInit /*= false*/)
 {
     mfxStatus sts = ExtraCheckVideoParam(par, caps, bInit);
     MFX_CHECK(sts >= MFX_ERR_NONE, sts);
@@ -854,7 +853,6 @@ mfxStatus  MFXVideoENCODEH265_HW::EncodeFrameSubmit(mfxEncodeCtrl *ctrl, mfxFram
     if (surface)
     {
         MFX_CHECK(LumaIsNull(surface) == (surface->Data.UV == 0), MFX_ERR_UNDEFINED_BEHAVIOR);
-        MFX_CHECK(surface->Data.Pitch < 0x8000, MFX_ERR_UNDEFINED_BEHAVIOR);
         MFX_CHECK(surface->Info.Width  >=  m_vpar.mfx.FrameInfo.Width, MFX_ERR_INVALID_VIDEO_PARAM);
         MFX_CHECK(surface->Info.Height >=  m_vpar.mfx.FrameInfo.Height, MFX_ERR_INVALID_VIDEO_PARAM);
     }
@@ -943,18 +941,27 @@ mfxStatus MFXVideoENCODEH265_HW::PrepareTask(Task& input_task)
             {
                 mfxExtLAFrameStatistics *vmeData = ExtBuffer::Get(task->m_ctrl);
                 MFX_CHECK_NULL_PTR1(vmeData);
+
                 mfxStatus status = m_brc->SetFrameVMEData(vmeData, m_vpar.mfx.FrameInfo.Width, m_vpar.mfx.FrameInfo.Height);
                 MFX_CHECK_STS(status);
+
                 mfxLAFrameInfo *pInfo = &vmeData->FrameStat[0];
                 task->m_frameType = (mfxU16)pInfo->FrameType;
-                m_frameOrder = pInfo->FrameDisplayOrder;
-                task->m_eo = pInfo->FrameEncodeOrder;
+                task->m_eo        = pInfo->FrameEncodeOrder;
+                task->m_level     = pInfo->Layer;
+                m_frameOrder      = pInfo->FrameDisplayOrder;
+
                 MFX_CHECK(m_frameOrder <= task->m_eo + m_vpar.mfx.GopRefDist - 1, MFX_ERR_UNDEFINED_BEHAVIOR);
-                task->m_level = pInfo->Layer;
             }
             MFX_CHECK(m_frameOrder != static_cast<mfxU32>(MFX_FRAMEORDER_UNKNOWN), MFX_ERR_UNDEFINED_BEHAVIOR);
+
+            mfxU32 numberOfFields = m_vpar.isField() ? 2 : 1;
+            if (m_frameOrder && (m_frameOrder < m_lastTask.m_fo)) // Frame from past
+                MFX_CHECK(m_lastTask.m_fo - m_frameOrder < m_vpar.mfx.GopRefDist * numberOfFields,  MFX_ERR_UNDEFINED_BEHAVIOR);
+
+            MFX_CHECK(m_frameOrder <= m_lastTask.m_eo + 1 + (m_vpar.mfx.GopRefDist - 1) * numberOfFields, MFX_ERR_UNDEFINED_BEHAVIOR);
+
             MFX_CHECK(task->m_frameType != MFX_FRAMETYPE_UNKNOWN, MFX_ERR_UNDEFINED_BEHAVIOR);
-            MFX_CHECK((mfxI32)(m_frameOrder - (m_lastTask.m_eo + 1)) <= (m_vpar.mfx.GopRefDist - 1)* (m_vpar.isField() ? 2 : 1), MFX_ERR_UNDEFINED_BEHAVIOR);
             if (!isValid(m_lastTask.m_dpb[1][0]))
                 MFX_CHECK(task->m_frameType & MFX_FRAMETYPE_IDR, MFX_ERR_UNDEFINED_BEHAVIOR);
         }
@@ -1071,7 +1078,8 @@ mfxStatus  MFXVideoENCODEH265_HW::Execute(mfxThreadTask thread_task, mfxU32 /*ui
         {
             mfxHDLPair surfaceHDL = {};
 
-            taskForExecute->m_cpb_removal_delay = (taskForExecute->m_eo == 0) ? 0 : (taskForExecute->m_eo - m_prevBPEO);
+            if (taskForExecute->m_recode == 0)
+                taskForExecute->m_cpb_removal_delay = (taskForExecute->m_eo == 0) ? 0 : (taskForExecute->m_eo - m_prevBPEO);
 
             if (taskForExecute->m_insertHeaders & INSERT_BPSEI)
             {
@@ -1086,9 +1094,9 @@ mfxStatus  MFXVideoENCODEH265_HW::Execute(mfxThreadTask thread_task, mfxU32 /*ui
                    && m_vpar.m_platform < MFX_HW_CNL
 #endif
                    ))
-                   taskForExecute->m_qpY = (mfxI8)Clip3( 0, 51, m_brc->GetQP(m_vpar, *taskForExecute));  //driver limitation
+                   taskForExecute->m_qpY = (mfxI8)mfx::clamp(m_brc->GetQP(m_vpar, *taskForExecute), 0, 51);  //driver limitation
                else
-                   taskForExecute->m_qpY = (mfxI8)Clip3( -6 * m_vpar.m_sps.bit_depth_luma_minus8, 51, m_brc->GetQP(m_vpar, *taskForExecute));
+                   taskForExecute->m_qpY = (mfxI8)mfx::clamp(m_brc->GetQP(m_vpar, *taskForExecute), -6 * m_vpar.m_sps.bit_depth_luma_minus8, 51);
 
                taskForExecute->m_sh.slice_qp_delta = mfxI8(taskForExecute->m_qpY - (m_vpar.m_pps.init_qp_minus26 + 26));
                if (taskForExecute->m_recode && m_vpar.AsyncDepth > 1)
@@ -1096,16 +1104,16 @@ mfxStatus  MFXVideoENCODEH265_HW::Execute(mfxThreadTask thread_task, mfxU32 /*ui
                    taskForExecute->m_sh.temporal_mvp_enabled_flag = 0; // WA
                }
             }
-
-            if (IsFrameToSkip(*taskForExecute,  m_rec, m_vpar.isSWBRC()))
+            bool toSkip = IsFrameToSkip(*taskForExecute, m_rec, m_vpar.isSWBRC());
+            if (toSkip)
             {
                 sts = CodeAsSkipFrame(*m_core,m_vpar,*taskForExecute, m_rawSkip, m_rec);
                 MFX_CHECK_STS(sts);
             }
-            sts = GetNativeHandleToRawSurface(*m_core, m_vpar, *taskForExecute, surfaceHDL);
+            sts = GetNativeHandleToRawSurface(*m_core, m_vpar, *taskForExecute, toSkip, surfaceHDL);
             MFX_CHECK_STS(sts);
 
-            if (!IsFrameToSkip(*taskForExecute,  m_rec, m_vpar.isSWBRC()))
+            if (!toSkip)
             {
                 sts = CopyRawSurfaceToVideoMemory(*m_core, m_vpar, *taskForExecute);
                 MFX_CHECK_STS(sts);

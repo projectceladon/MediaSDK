@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,17 +31,8 @@
 #include "mfx_enc_common.h"
 #include "assert.h"
 
-//#define VP9_LOGGING
-#ifdef VP9_LOGGING
-#define VP9_LOG(string, ...) printf(string, ##__VA_ARGS__); fflush(0);
-#else
-#define VP9_LOG(string, ...)
-#endif
-
 namespace MfxHwVP9Encode
 {
-
-#define MFX_CHECK_WITH_ASSERT(EXPR, ERR) { assert(EXPR); MFX_CHECK(EXPR, ERR); }
 
 constexpr auto DPB_SIZE = 8; // DPB size by VP9 spec
 constexpr auto DPB_SIZE_REAL = 3; // DPB size really used by encoder
@@ -223,16 +214,16 @@ enum // identifies memory type at encoder input w/o any details
         mfxU8             refCount;
     };
 
-    inline mfxStatus LockSurface(sFrameEx*  pFrame, mfxCoreInterface* pCore)
+    inline mfxStatus LockSurface(sFrameEx*  pFrame, VideoCORE* pCore)
     {
-        return (pFrame) ? pCore->IncreaseReference(pCore->pthis, &pFrame->pSurface->Data) : MFX_ERR_NONE;
+        return (pFrame) ? pCore->IncreaseReference(&pFrame->pSurface->Data) : MFX_ERR_NONE;
     }
-    inline mfxStatus FreeSurface(sFrameEx* &pFrame, mfxCoreInterface* pCore)
+    inline mfxStatus FreeSurface(sFrameEx* &pFrame, VideoCORE* pCore)
     {
         mfxStatus sts = MFX_ERR_NONE;
         if (pFrame && pFrame->pSurface)
         {
-            sts = pCore->DecreaseReference(pCore->pthis, &pFrame->pSurface->Data);
+            sts = pCore->DecreaseReference(&pFrame->pSurface->Data);
             pFrame = 0;
         }
         return sts;
@@ -245,7 +236,7 @@ enum // identifies memory type at encoder input w/o any details
     {
         pFrame->refCount++;
     }
-    inline mfxStatus DecreaseRef(sFrameEx* &pFrame, mfxCoreInterface* pCore)
+    inline mfxStatus DecreaseRef(sFrameEx* &pFrame, VideoCORE* pCore)
     {
         if (pFrame->refCount)
         {
@@ -259,8 +250,6 @@ enum // identifies memory type at encoder input w/o any details
 
         return MFX_ERR_NONE;
     }
-
-#define MFX_CHECK_WITH_ASSERT(EXPR, ERR) { assert(EXPR); MFX_CHECK(EXPR, ERR); }
 
     template<class T> inline void Zero(T & obj)                { obj = T(); }
     template<class T, size_t N> inline void Zero(T (&obj)[N])  { std::fill_n(obj, N, T()); }
@@ -446,10 +435,13 @@ template <typename T> mfxStatus RemoveExtBuffer(T & par, mfxU32 id)
     public:
         MfxFrameAllocResponse();
 
+        MfxFrameAllocResponse(MfxFrameAllocResponse const &) = delete;
+        MfxFrameAllocResponse & operator =(MfxFrameAllocResponse const &) = delete;
+
         ~MfxFrameAllocResponse();
 
         mfxStatus Alloc(
-            mfxCoreInterface * pCore,
+            VideoCORE* pCore,
             mfxFrameAllocRequest & req);
 
         mfxStatus Release();
@@ -457,9 +449,7 @@ template <typename T> mfxStatus RemoveExtBuffer(T & par, mfxU32 id)
         mfxFrameInfo               m_info;
 
     private:
-        MfxFrameAllocResponse(MfxFrameAllocResponse const &);
-
-        mfxCoreInterface * m_pCore;
+        VideoCORE* m_pCore;
         mfxU16      m_numFrameActualReturnedByAllocFrames;
 
         std::vector<mfxFrameAllocResponse> m_responseQueue;
@@ -468,7 +458,7 @@ template <typename T> mfxStatus RemoveExtBuffer(T & par, mfxU32 id)
 
     struct FrameLocker
     {
-        FrameLocker(mfxCoreInterface * pCore, mfxFrameData & data)
+        FrameLocker(VideoCORE * pCore, mfxFrameData & data)
             : m_core(pCore)
             , m_data(data)
             , m_memId(data.MemId)
@@ -476,7 +466,7 @@ template <typename T> mfxStatus RemoveExtBuffer(T & par, mfxU32 id)
         {
         }
 
-        FrameLocker(mfxCoreInterface * pCore, mfxFrameData & data, mfxMemId memId)
+        FrameLocker(VideoCORE * pCore, mfxFrameData & data, mfxMemId memId)
             : m_core(pCore)
             , m_data(data)
             , m_memId(memId)
@@ -489,7 +479,8 @@ template <typename T> mfxStatus RemoveExtBuffer(T & par, mfxU32 id)
         mfxStatus Unlock()
         {
             mfxStatus mfxSts = MFX_ERR_NONE;
-            mfxSts = m_core->FrameAllocator.Unlock(m_core->FrameAllocator.pthis, m_memId, &m_data);
+            mfxSts = m_core->UnlockFrame(m_memId, &m_data);
+
             m_status = LOCK_NO;
             return mfxSts;
         }
@@ -502,7 +493,7 @@ template <typename T> mfxStatus RemoveExtBuffer(T & par, mfxU32 id)
             mfxU32 status = LOCK_NO;
 
             if (m_data.Y == 0 &&
-                MFX_ERR_NONE == m_core->FrameAllocator.Lock(m_core->FrameAllocator.pthis, m_memId, &m_data))
+                MFX_ERR_NONE == m_core->LockFrame(m_memId, &m_data))
                 status = LOCK_DONE;
 
             return status;
@@ -512,8 +503,8 @@ template <typename T> mfxStatus RemoveExtBuffer(T & par, mfxU32 id)
         FrameLocker(FrameLocker const &);
         FrameLocker & operator =(FrameLocker const &);
 
-        mfxCoreInterface * m_core;
-        mfxFrameData &     m_data;
+        VideoCORE*         m_core;
+        mfxFrameData&      m_data;
         mfxMemId           m_memId;
         mfxU32             m_status;
     };
@@ -556,7 +547,7 @@ constexpr auto NUM_OF_SUPPORTED_EXT_BUFFERS = 7; // mfxExtVP9Param, mfxExtOpaque
         void Construct(mfxVideoParam const & par);
 
     private:
-        mfxExtBuffer *              m_extParam[NUM_OF_SUPPORTED_EXT_BUFFERS];
+        mfxExtBuffer*               m_extParam[NUM_OF_SUPPORTED_EXT_BUFFERS];
         mfxExtVP9Param              m_extPar;
         mfxExtOpaqueSurfaceAlloc    m_extOpaque;
         mfxExtCodingOption2         m_extOpt2;
@@ -576,7 +567,7 @@ constexpr auto NUM_OF_SUPPORTED_EXT_BUFFERS = 7; // mfxExtVP9Param, mfxExtOpaque
                               Task const & task,
                               mfxU8 frameType,
                               VP9FrameLevelParam &frameParam,
-                              mfxPlatform const & platform);
+                              eMFXHWType platform);
 
     mfxStatus InitVp9SeqLevelParam(VP9MfxVideoParam const &video, VP9SeqLevelParam &param);
 
@@ -589,7 +580,7 @@ constexpr auto NUM_OF_SUPPORTED_EXT_BUFFERS = 7; // mfxExtVP9Param, mfxExtOpaque
     mfxStatus UpdateDpb(VP9FrameLevelParam &frameParam,
                         sFrameEx *pRecFrame,
                         std::vector<sFrameEx*>&dpb,
-                        mfxCoreInterface *pCore);
+                        VideoCORE *pCore);
 
     class ExternalFrames
     {
@@ -609,7 +600,7 @@ constexpr auto NUM_OF_SUPPORTED_EXT_BUFFERS = 7; // mfxExtVP9Param, mfxExtOpaque
         std::vector<mfxFrameSurface1>   m_surfaces;
     public:
         InternalFrames() {}
-        mfxStatus Init(mfxCoreInterface *pCore, mfxFrameAllocRequest *pAllocReq);
+        mfxStatus Init(VideoCORE *pCore, mfxFrameAllocRequest *pAllocReq);
         sFrameEx * GetFreeFrame();
         mfxStatus  GetFrame(mfxU32 numFrame, sFrameEx * &Frame);
         mfxStatus Release();
@@ -650,7 +641,7 @@ constexpr auto NUM_OF_SUPPORTED_EXT_BUFFERS = 7; // mfxExtVP9Param, mfxExtOpaque
     {
         // number of input surfaces is same for VIDEO and SYSTEM memory
         // because so far encoder doesn't support LookAhead and B-frames
-        return video.AsyncDepth;
+        return video.AsyncDepth + ((video.AsyncDepth > 1)? 1: 0);
     }
 
     class Task
@@ -709,8 +700,7 @@ constexpr auto NUM_OF_SUPPORTED_EXT_BUFFERS = 7; // mfxExtVP9Param, mfxExtOpaque
           ~Task() {};
     };
 
-
-    inline mfxStatus FreeTask(mfxCoreInterface *pCore, Task &task)
+    inline mfxStatus FreeTask(VideoCORE *pCore, Task &task)
     {
         mfxStatus sts = FreeSurface(task.m_pRawFrame, pCore);
         MFX_CHECK_STS(sts);
@@ -831,23 +821,23 @@ constexpr auto NUM_OF_SUPPORTED_EXT_BUFFERS = 7; // mfxExtVP9Param, mfxExtOpaque
     }
 
     mfxStatus GetRealSurface(
-        mfxCoreInterface const *pCore,
+        VideoCORE *pCore,
         VP9MfxVideoParam const &par,
         Task const &task,
         mfxFrameSurface1 *& pSurface);
 
     mfxStatus GetInputSurface(
-        mfxCoreInterface const *pCore,
+        VideoCORE *pCore,
         VP9MfxVideoParam const &par,
         Task const &task,
         mfxFrameSurface1 *& pSurface);
 
     mfxStatus CopyRawSurfaceToVideoMemory(
-        mfxCoreInterface *pCore,
+        VideoCORE *pCore,
         VP9MfxVideoParam const &par,
         Task const &task);
 
-/*mfxStatus ReleaseDpbFrames(mfxCoreInterface* pCore, std::vector<sFrameEx*> & dpb)
+/*mfxStatus ReleaseDpbFrames(VideoCORE* pCore, std::vector<sFrameEx*> & dpb)
 {
     for (mfxU8 refIdx = 0; refIdx < dpb.size(); refIdx ++)
     {
@@ -906,29 +896,12 @@ inline mfxU16 MapIdToBlockSize(mfxU16 id)
 
 inline bool CompareSegmentMaps(mfxExtVP9Segmentation const & first, mfxExtVP9Segmentation const & second)
 {
-    bool equal = false;
+    if (!first.SegmentId || !second.SegmentId ||
+        first.SegmentIdBlockSize != second.SegmentIdBlockSize ||
+        !first.NumSegmentIdAlloc || !second.NumSegmentIdAlloc)
+        return false;
 
-    if (first.SegmentId && second.SegmentId &&
-        first.SegmentIdBlockSize == second.SegmentIdBlockSize &&
-        first.NumSegmentIdAlloc && second.NumSegmentIdAlloc)
-    {
-        if (first.NumSegmentIdAlloc >= second.NumSegmentIdAlloc)
-        {
-            if (0 == memcmp(first.SegmentId, second.SegmentId, first.NumSegmentIdAlloc))
-            {
-                equal = true;
-            }
-        }
-        else
-        {
-            if (0 == memcmp(first.SegmentId, second.SegmentId, second.NumSegmentIdAlloc))
-            {
-                equal = true;
-            }
-        }
-    }
-
-    return equal;
+    return std::equal(first.SegmentId, first.SegmentId + std::min(first.NumSegmentIdAlloc, second.NumSegmentIdAlloc), second.SegmentId);
 }
 
 inline bool CompareSegmentParams(mfxExtVP9Segmentation const & first, mfxExtVP9Segmentation const & second)
@@ -990,6 +963,12 @@ inline bool IsFeatureEnabled(mfxU16 features, mfxU8 feature)
 {
     return (features & (1 << feature)) != 0;
 }
+
+mfxStatus GetNativeHandleToRawSurface(
+    VideoCORE & core,
+    mfxMemId mid,
+    mfxHDL *handle,
+    VP9MfxVideoParam const & video);
 
 } // MfxHwVP9Encode
 

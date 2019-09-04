@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -47,8 +47,6 @@
 #define D3DFMT_NV12 (D3DFORMAT)(MFX_MAKEFOURCC('N', 'V', '1', '2'))
 #define D3DDDIFMT_NV12 (D3DDDIFORMAT)(MFX_MAKEFOURCC('N', 'V', '1', '2'))
 #define D3DDDIFMT_YU12 (D3DDDIFORMAT)(MFX_MAKEFOURCC('Y', 'U', '1', '2'))
-
-#define MFX_CHECK_WITH_ASSERT(EXPR, ERR) { assert(EXPR); MFX_CHECK(EXPR, ERR); }
 
 // this guid is used to identify that device creation is performed during Query or QueryIOSurf call
 static const GUID MSDK_Private_Guid_Encode_AVC_Query =
@@ -674,23 +672,15 @@ namespace MfxHwH264Encode
         const eMFXHWType& platfrom);
 
     mfxStatus QueryHwCaps(
-        VideoCORE *     core,
-        ENCODE_CAPS & hwCaps,
-        mfxVideoParam * par);
+        VideoCORE *       core,
+        MFX_ENCODE_CAPS & hwCaps,
+        mfxVideoParam *   par);
 
     mfxStatus QueryMbProcRate(
         VideoCORE* core,
         mfxVideoParam const & out,
         mfxU32 (&mbPerSec)[16],
         const mfxVideoParam * in);
-
-    mfxStatus QueryInputTilingSupport(
-        VideoCORE* core,
-        mfxVideoParam const & par,
-        mfxU32 &inputTiling,
-        GUID guid,
-        mfxU32 width = 1920,
-        mfxU32 height = 1088);
 
     mfxStatus QueryGuid(
         VideoCORE* core,
@@ -755,23 +745,23 @@ namespace MfxHwH264Encode
 
 
     mfxStatus CheckVideoParam(
-        MfxVideoParam &     par,
-        ENCODE_CAPS const & hwCaps,
-        bool                setExtAlloc,
-        eMFXHWType          platform = MFX_HW_UNKNOWN,
-        eMFXVAType          vaType = MFX_HW_NO,
-        eMFXGTConfig        config = MFX_GT_UNKNOWN,
-        bool                bInit = false);
+        MfxVideoParam &         par,
+        MFX_ENCODE_CAPS const & hwCaps,
+        bool                    setExtAlloc,
+        eMFXHWType              platform = MFX_HW_UNKNOWN,
+        eMFXVAType              vaType = MFX_HW_NO,
+        eMFXGTConfig            config = MFX_GT_UNKNOWN,
+        bool                    bInit = false);
 
     mfxStatus CheckVideoParamFEI(
         MfxVideoParam &     par);
 
     mfxStatus CheckVideoParamQueryLike(
-        MfxVideoParam &     par,
-        ENCODE_CAPS const & hwCaps,
-        eMFXHWType          platform = MFX_HW_UNKNOWN,
-        eMFXVAType          vaType = MFX_HW_NO,
-        eMFXGTConfig        config = MFX_GT_UNKNOWN);
+        MfxVideoParam &         par,
+        MFX_ENCODE_CAPS const & hwCaps,
+        eMFXHWType              platform = MFX_HW_UNKNOWN,
+        eMFXVAType              vaType = MFX_HW_NO,
+        eMFXGTConfig            config = MFX_GT_UNKNOWN);
 
     mfxStatus CheckVideoParamMvcQueryLike(MfxVideoParam &     par);
 
@@ -780,12 +770,12 @@ namespace MfxHwH264Encode
     mfxStatus CheckAndFixMVCSeqDesc(mfxExtMVCSeqDesc * mvcSeqDesc, bool isViewOutput);
 
     void SetDefaults(
-        MfxVideoParam &     par,
-        ENCODE_CAPS const & hwCaps,
-        bool                setExtAlloc,
-        eMFXHWType          platform = MFX_HW_UNKNOWN,
-        eMFXVAType          vaType = MFX_HW_NO,
-        eMFXGTConfig        config = MFX_GT_UNKNOWN);
+        MfxVideoParam &         par,
+        MFX_ENCODE_CAPS const & hwCaps,
+        bool                    setExtAlloc,
+        eMFXHWType              platform = MFX_HW_UNKNOWN,
+        eMFXVAType              vaType = MFX_HW_NO,
+        eMFXGTConfig            config = MFX_GT_UNKNOWN);
 
     void InheritDefaultValues(
         MfxVideoParam const & parInit,
@@ -801,7 +791,7 @@ namespace MfxHwH264Encode
         mfxEncodeCtrl *       ctrl,
         mfxFrameSurface1 *    surface,
         mfxBitstream *        bs,
-        ENCODE_CAPS const &   caps,
+        MFX_ENCODE_CAPS const &   caps,
         eMFXHWType            platform = MFX_HW_UNKNOWN);
 
     mfxStatus CheckFEIRunTimeExtBuffersContent(
@@ -1354,9 +1344,9 @@ namespace MfxHwH264Encode
     {
     public:
         void Init(
-            MfxVideoParam const & par,
-            ENCODE_CAPS const &   hwCaps,
-            bool                  emulPrev = true); // insert emualtion prevention bytes when possible (sps/pps/sei/aud)
+            MfxVideoParam const &     par,
+            MFX_ENCODE_CAPS const &   hwCaps,
+            bool                      emulPrev = true); // insert emualtion prevention bytes when possible (sps/pps/sei/aud)
 
         std::vector<ENCODE_PACKEDHEADER_DATA> const & PackSlices(
             DdiTask const & task,
@@ -1408,7 +1398,7 @@ namespace MfxHwH264Encode
         // for header packing
         std::vector<mfxExtSpsHeader>    m_sps;
         std::vector<mfxExtPpsHeader>    m_pps;
-        ENCODE_CAPS                     m_hwCaps;
+        MFX_ENCODE_CAPS                 m_hwCaps;
         mfxU8                           m_spsIdx[8][16];            // for lookup by did & qid
         mfxU8                           m_ppsIdx[8][16];            // for lookup by did & qid
         mfxU8                           m_refDqId[8];               // for lookup by did
@@ -1420,6 +1410,7 @@ namespace MfxHwH264Encode
         bool                            m_emulPrev;                 // insert emualtion prevention bytes when possible (sps/pps/sei/aud)
         bool                            m_isMVC;
         bool                            m_longStartCodes;
+        bool                            m_isLowPower;
 
         ENCODE_PACKEDHEADER_DATA                m_packedAud;
         std::vector<ENCODE_PACKEDHEADER_DATA>   m_packedSps;

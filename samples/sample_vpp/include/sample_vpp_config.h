@@ -1,5 +1,5 @@
 /******************************************************************************\
-Copyright (c) 2005-2018, Intel Corporation
+Copyright (c) 2005-2019, Intel Corporation
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -124,6 +124,17 @@ typedef struct
     FilterConfig mode;
 
 } sDenoiseParam;
+
+struct sColorFillParam: public mfxExtVPPColorFill
+{
+    FilterConfig mode= VPP_FILTER_DISABLED;
+    sColorFillParam():
+        mfxExtVPPColorFill()
+    {
+        Header.BufferId = MFX_EXTBUFF_VPP_COLORFILL;
+        Header.BufferSz = sizeof(mfxExtVPPColorFill);
+    }
+} ;
 
 #ifdef ENABLE_MCTF
 typedef struct

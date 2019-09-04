@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2019 Intel Corporation
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@ enum {
     MFX_EXTBUFF_BRC = MFX_MAKEFOURCC('E','B','R','C')
 };
 
+MFX_PACK_BEGIN_STRUCT_W_PTR()
 typedef struct {
 #if (MFX_VERSION >= 1026)
     mfxU32 reserved[23];
@@ -50,12 +51,26 @@ typedef struct {
     mfxU16 NumExtParam;
     mfxExtBuffer** ExtParam;
 } mfxBRCFrameParam;
+MFX_PACK_END()
 
+MFX_PACK_BEGIN_STRUCT_W_PTR()
 typedef struct {
     mfxI32 QpY;             // Frame-level Luma QP
+#if (MFX_VERSION >= 1029)
+    mfxU32 InitialCpbRemovalDelay;
+    mfxU32 InitialCpbRemovalOffset;
+    mfxU32 reserved1[7];
+    mfxU32 MaxFrameSize;    // Max frame size in bytes (used for rePak)
+    mfxU8  DeltaQP[8];      // deltaQP[i] is adding to QP value while i-rePak
+    mfxU16 MaxNumRepak;     // Max number of rePak to provide MaxFrameSize (from 0 to 8)
+    mfxU16 NumExtParam;
+    mfxExtBuffer** ExtParam;   // extension buffer list
+#else
     mfxU32 reserved1[13];
     mfxHDL reserved2;
+#endif
 } mfxBRCFrameCtrl;
+MFX_PACK_END()
 
 /* BRCStatus */
 enum {
@@ -66,16 +81,19 @@ enum {
     MFX_BRC_PANIC_SMALL_FRAME = 4  // Coded frame is too small, no further recoding possible - required padding to MinFrameSize
 };
 
+MFX_PACK_BEGIN_USUAL_STRUCT()
 typedef struct {
     mfxU32 MinFrameSize;    // Size in bytes, coded frame must be padded to when Status = MFX_BRC_PANIC_SMALL_FRAME
     mfxU16 BRCStatus;       // See BRCStatus enumerator
     mfxU16 reserved[25];
     mfxHDL reserved1;
 } mfxBRCFrameStatus;
+MFX_PACK_END()
 
 /* Structure contains set of callbacks to perform external bit-rate control.
 Can be attached to mfxVideoParam structure during encoder initialization.
 Turn mfxExtCodingOption2::ExtBRC option ON to make encoder use external BRC instead of native one. */
+MFX_PACK_BEGIN_STRUCT_W_PTR()
 typedef struct {
     mfxExtBuffer Header;
 
@@ -101,6 +119,7 @@ typedef struct {
 
     mfxHDL reserved1[10];
 } mfxExtBRC;
+MFX_PACK_END()
 
 #ifdef __cplusplus
 } // extern "C"

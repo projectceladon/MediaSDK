@@ -1,15 +1,15 @@
 // Copyright (c) 2018 Intel Corporation
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -24,7 +24,6 @@
 #include <mfx_scheduler_core_handle.h>
 #include <mfx_trace.h>
 
-#include <umc_automatic_mutex.h>
 #include <vm_time.h>
 #include <vm_sys_info.h>
 
@@ -103,10 +102,9 @@ void mfxSchedulerCore::SetThreadsAffinityToSockets(void)
 void mfxSchedulerCore::Close(void)
 {
     int priority;
-    size_t n;
 
     StopWakeUpThread();
-    
+
     // stop threads
     if (m_pThreadCtx)
     {
@@ -151,13 +149,10 @@ void mfxSchedulerCore::Close(void)
     }
 
     // delete task objects
-    for (n = 0; n < m_ppTaskLookUpTable.Size(); n += 1)
+    for (auto & it : m_ppTaskLookUpTable)
     {
-        if (m_ppTaskLookUpTable[n])
-        {
-            delete m_ppTaskLookUpTable[n];
-            m_ppTaskLookUpTable[n] = NULL;
-        }
+        delete it;
+        it = nullptr;
     }
 
 
@@ -242,7 +237,7 @@ mfxStatus mfxSchedulerCore::AllocateEmptyTask(void)
     ScrubCompletedTasks();
 
     // allocate one new task
-    if (NULL == m_pFreeTasks)
+    if (nullptr == m_pFreeTasks)
     {
 
 
@@ -330,7 +325,7 @@ mfxStatus mfxSchedulerCore::GetOccupancyTableIndex(mfxU32 &idx,
             }
         }
         // we can't reallocate the table
-        if (m_occupancyTable.Size() == i)
+        if (m_occupancyTable.size() == i)
         {
             return MFX_WRN_DEVICE_BUSY;
         }
@@ -432,13 +427,13 @@ void mfxSchedulerCore::RegisterTaskDependencies(MFX_SCHEDULER_TASK  *pTask)
 
     // check if the table have empty position(s),
     // If so decrement the index of the last table entry.
-    i = m_numDependencies;
-    while ((0 < i) &&
-           (NULL == m_pDependencyTable[i - 1].p))
+    if (m_pDependencyTable.size() > m_numDependencies)
     {
-        i -= 1;
+        auto it = std::find_if(m_pDependencyTable.rend() - m_numDependencies, m_pDependencyTable.rend(),
+                               [](const MFX_DEPENDENCY_ITEM & item){ return item.p != nullptr; });
+
+        m_numDependencies = m_pDependencyTable.rend() - it;
     }
-    m_numDependencies = i;
 
     // get the number of source dependencies
     remainInputs = 0;
@@ -508,7 +503,7 @@ void mfxSchedulerCore::RegisterTaskDependencies(MFX_SCHEDULER_TASK  *pTask)
         if (pTask->param.task.pDst[i])
         {
             // find empty table entry
-            while (m_pDependencyTable[tableIdx].p)
+            while (m_pDependencyTable.at(tableIdx).p)
             {
                 tableIdx += 1;
             }
