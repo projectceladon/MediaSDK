@@ -47,6 +47,7 @@
 #include "mfx_ext_buffers.h"
 
 using namespace MfxEncLA;
+using MfxHwH264Encode::IsOn;
 
 static mfxU16 GetGopSize(mfxVideoParam *par)
 {
@@ -54,10 +55,14 @@ static mfxU16 GetGopSize(mfxVideoParam *par)
 }
 static mfxU16 GetRefDist(mfxVideoParam *par)
 {
-    mfxExtLAControl *pControl = (mfxExtLAControl *) GetExtBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_LOOKAHEAD_CTRL);
     mfxU16 GopSize = GetGopSize(par);
-    mfxU16 refDist = par->mfx.GopRefDist == 0 ? ((pControl && pControl->BPyramid == MFX_CODINGOPTION_ON) ? 8 : 3) : par->mfx.GopRefDist;
-    return refDist <= GopSize ? refDist: GopSize;
+    mfxU16 refDist = par->mfx.GopRefDist;
+    if (refDist == 0)
+    {
+        mfxExtLAControl *pControl = (mfxExtLAControl *)GetExtBuffer(par->ExtParam, par->NumExtParam, MFX_EXTBUFF_LOOKAHEAD_CTRL);
+        refDist = IsOn(par->mfx.LowPower) ? 1 : ((pControl && IsOn(pControl->BPyramid)) ? 8 : 3);
+    }
+    return (std::min)(refDist, GopSize);
 }
 static mfxU16 GetAsyncDeph(mfxVideoParam *par)
 {
@@ -964,19 +969,10 @@ mfxStatus VideoENC_LA::RunFrameVmeENCCheck(
         numEntryPoints = 1;
     }
     return sts;
-} 
-
-mfxF64 const QSTEP[52] = {
-        0.630,  0.707,  0.794,  0.891,  1.000,   1.122,   1.260,   1.414,   1.587,   1.782,   2.000,   2.245,   2.520,
-        2.828,  3.175,  3.564,  4.000,  4.490,   5.040,   5.657,   6.350,   7.127,   8.000,   8.980,  10.079,  11.314,
-    12.699, 14.254, 16.000, 17.959, 20.159,  22.627,  25.398,  28.509,  32.000,  35.919,  40.317,  45.255,  50.797,
-    57.018, 64.000, 71.838, 80.635, 90.510, 101.594, 114.035, 128.000, 143.675, 161.270, 181.019, 203.187, 228.070
-};
+}
 
 namespace MfxHwH264EncodeHW
 {
-    //MfxHwH264Encode::VmeData * FindUnusedVmeData(std::vector<MfxHwH264Encode::VmeData> & vmeData);
-    mfxF64 const INTRA_QSTEP_COEFF  = 2.0;
     mfxU8 GetSkippedQp(MfxHwH264Encode::MbData const & mb);
     void DivideCost(std::vector<MfxHwH264Encode::MbData> & mb, mfxI32 width, mfxI32 height, mfxU32 cost, mfxI32 x, mfxI32 y);
 };

@@ -692,6 +692,11 @@ mfxStatus VAAPIEncoder::CreateAuxilliaryDevice(
                           VAEntrypointEncSliceLP,
                           attrs.data(),
                           (int)attrs.size());
+
+    MFX_CHECK(!(VA_STATUS_ERROR_UNSUPPORTED_ENTRYPOINT == vaSts ||
+                VA_STATUS_ERROR_UNSUPPORTED_PROFILE    == vaSts),
+                MFX_ERR_UNSUPPORTED);
+
     MFX_CHECK_WITH_ASSERT(VA_STATUS_SUCCESS == vaSts, MFX_ERR_DEVICE_FAILED);
 
     if (attrs[idx_map[VAConfigAttribRTFormat]].value != VA_ATTRIB_NOT_SUPPORTED)
@@ -1332,8 +1337,8 @@ mfxStatus VAAPIEncoder::Destroy()
     sts = CheckAndDestroyVAbuffer(m_vaDisplay, m_ppsBufferId);
     std::ignore = MFX_STS_TRACE(sts);
 
-    sts = CheckAndDestroyVAbuffer(m_vaDisplay, m_segMapBufferId);
-    std::ignore = MFX_STS_TRACE(sts);
+    // m_segMapBufferId buffer is allocated through internal allocator and will be destroyed there
+    m_segMapBufferId = VA_INVALID_ID;
 
     sts = CheckAndDestroyVAbuffer(m_vaDisplay, m_segParBufferId);
     std::ignore = MFX_STS_TRACE(sts);

@@ -79,7 +79,7 @@ namespace MfxHwH264Encode
         MFX_MEMTYPE_FROM_ENCODE | MFX_MEMTYPE_DXVA2_DECODER_TARGET | MFX_MEMTYPE_EXTERNAL_FRAME;
 
 
-    mfxU16 CalcNumFrameMin(const MfxHwH264Encode::MfxVideoParam &par);
+    mfxU16 CalcNumFrameMin(const MfxHwH264Encode::MfxVideoParam &par, MFX_ENCODE_CAPS const & hwCaps);
 
     enum
     {
@@ -608,6 +608,14 @@ namespace MfxHwH264Encode
     struct IntraRefreshState
     {
         IntraRefreshState() : refrType(0), IntraLocation(0), IntraSize(0), IntRefQPDelta(0), firstFrameInCycle(false) {}
+        bool operator==(const IntraRefreshState& rhs) const
+        {
+            return refrType == rhs.refrType &&
+                IntraLocation == rhs.IntraLocation &&
+                IntraSize == rhs.IntraSize &&
+                IntRefQPDelta == rhs.IntRefQPDelta &&
+                firstFrameInCycle == rhs.firstFrameInCycle;
+        }
 
         mfxU16  refrType;
         mfxU16  IntraLocation;
@@ -865,7 +873,6 @@ namespace MfxHwH264Encode
             : Reconstruct()
             , m_pushed(0)
             , m_type(0, 0)
-            , m_frcmplx(0)
             , m_dpb()
             , m_internalListCtrlPresent(false)
             , m_internalListCtrlHasPriority(true)
@@ -1051,7 +1058,6 @@ namespace MfxHwH264Encode
             m_brcFrameParams.DisplayOrder = m_frameOrder;
             m_brcFrameParams.EncodedOrder = m_encOrder;
             m_brcFrameParams.PyramidLayer = (mfxU16)m_loc.level;
-            m_brcFrameParams.FrameCmplx = m_frcmplx;
             m_brcFrameParams.LongTerm = (m_longTermFrameIdx != NO_INDEX_U8) ? 1 : 0;
             m_brcFrameParams.SceneChange = (mfxU16)m_SceneChange;
             if (!m_brcFrameParams.PyramidLayer && (m_type[m_fid[0]] & MFX_FRAMETYPE_P) && m_LowDelayPyramidLayer)
@@ -1062,7 +1068,6 @@ namespace MfxHwH264Encode
         mfxEncodeCtrl   m_ctrl;
         DdiTask *       m_pushed;         // task which was pushed to queue when this task was chosen for encoding
         Pair<mfxU8>     m_type;           // encoding type (one for each field)
-        mfxU16          m_frcmplx;        // Frame complexity
 
         // all info about references
         // everything is in pair because task is a per-frame object
@@ -1305,7 +1310,7 @@ namespace MfxHwH264Encode
         virtual mfxStatus SetFrameVMEData(const mfxExtLAFrameStatistics*, mfxU32 , mfxU32 ) {return MFX_ERR_NONE;}
     };
 
-    BrcIface * CreateBrc(MfxVideoParam const & video);
+    BrcIface * CreateBrc(MfxVideoParam const & video, MFX_ENCODE_CAPS const & hwCaps);
 
     class Brc : public BrcIface
     {
@@ -1947,7 +1952,7 @@ namespace MfxHwH264Encode
             DdiTask & newTask);
         mfxStatus CalculateFrameCmplx(
             DdiTask const &task,
-            mfxU16 &raca128);
+            mfxU32 &raca128);
         mfxStatus Prd_LTR_Operation(
             DdiTask & task);
         void      AssignFrameTypes(

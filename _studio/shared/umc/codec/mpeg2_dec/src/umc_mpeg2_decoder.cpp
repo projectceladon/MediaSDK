@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2018-2019 Intel Corporation
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -848,12 +848,20 @@ namespace UMC_MPEG2_DECODER
         return frame;
     }
 
-    static
-    bool IsFieldOfOneFrame(const MPEG2PictureHeader& picHdr, const MPEG2PictureCodingExtension& picExtHdr,
-                           const MPEG2PictureHeader & newPictureHdr, const MPEG2PictureCodingExtension& newPicExtHdr)
+    bool MPEG2Decoder::IsFieldOfCurrentFrame() const
     {
-        if (picHdr.temporal_reference != newPictureHdr.temporal_reference)  // 6.3.9
-            return false;
+        const auto firstFrameSlice = m_currFrame->GetAU(0)->GetSlice(0);
+        const auto picHdr = firstFrameSlice->GetPicHeader();
+        const auto picExtHdr = firstFrameSlice->GetPicExtHeader();
+        const auto newPicHdr = *m_currHeaders.picHdr.get();
+        const auto newPicExtHdr = *m_currHeaders.picExtHdr.get();
+
+        // this is a workaround (and actually not by spec) to handle invalid streams where an II or IP pair has different temporal_reference
+        if (m_currFrame->frameType != MPEG2_I_PICTURE || m_currFrame->currFieldIndex != 0)
+        {
+            if (picHdr.temporal_reference != newPicHdr.temporal_reference)  // 6.3.9
+                return false;
+        }
 
         if (picExtHdr.picture_structure == newPicExtHdr.picture_structure) // the same type fields
             return false;
@@ -874,12 +882,9 @@ namespace UMC_MPEG2_DECODER
             return true; // Full frame
         }
 
-        // field picture
-        const auto firstFrameSlice = m_currFrame->GetAU(0)->GetSlice(0);
-        const auto newPicHdr = *m_currHeaders.picHdr.get();
         const auto newPicExtHdr = *m_currHeaders.picExtHdr.get();
 
-        if (IsFieldOfOneFrame(firstFrameSlice->GetPicHeader(), firstFrameSlice->GetPicExtHeader(), newPicHdr, newPicExtHdr))
+        if (IsFieldOfCurrentFrame())
         {
             CompletePicture(*m_currFrame, m_currFrame->currFieldIndex); // complete the first field of the current frame
 
@@ -1042,6 +1047,18 @@ namespace UMC_MPEG2_DECODER
             if (m_params.lFlags & UMC::FLAG_VDEC_TELECINE_PTS)
             {
                 m_localFrameTime += (m_localDeltaFrameTime / 2);
+            }
+            break;
+        case DPS_FRAME_DOUBLING:
+            if (m_params.lFlags & UMC::FLAG_VDEC_TELECINE_PTS)
+            {
+                m_localFrameTime += m_localDeltaFrameTime;
+            }
+            break;
+        case DPS_FRAME_TRIPLING:
+            if (m_params.lFlags & UMC::FLAG_VDEC_TELECINE_PTS)
+            {
+                m_localFrameTime += (m_localDeltaFrameTime * 2);
             }
             break;
         default:

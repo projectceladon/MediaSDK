@@ -333,13 +333,13 @@ mfxStatus ImplementationAvc::Query(
         {
             extRoi->NumROI          = 1;
 #if MFX_VERSION > 1021
-            extRoi->ROIMode         = MFX_ROI_MODE_PRIORITY;
+            extRoi->ROIMode         = MFX_ROI_MODE_QP_DELTA;
 #endif // MFX_VERSION > 1021
             extRoi->ROI[0].Left     = 1;
             extRoi->ROI[0].Right    = 1;
             extRoi->ROI[0].Top      = 1;
             extRoi->ROI[0].Bottom   = 1;
-            extRoi->ROI[0].Priority = 1;
+            extRoi->ROI[0].DeltaQP = 1;
         }
         if (mfxExtEncoderCapability * extCap = GetExtBuffer(*out))
         {
@@ -636,7 +636,7 @@ mfxStatus ImplementationAvc::QueryIOSurf(
         //if MDF is in pipeline need to allocate shared resource to avoid performance issues due to decompression when MMCD is enabled
     }
 
-    request->NumFrameMin = CalcNumFrameMin(tmp);
+    request->NumFrameMin = CalcNumFrameMin(tmp, hwCaps);
     request->NumFrameSuggested = request->NumFrameMin;
     // get FrameInfo from original VideoParam
     request->Info = tmp.mfx.FrameInfo;
@@ -856,7 +856,7 @@ mfxStatus ImplementationAvc::Init(mfxVideoParam * par)
 
     if (m_enabledSwBrc)
     {
-        m_brc.SetImpl(CreateBrc(m_video));
+        m_brc.SetImpl(CreateBrc(m_video, m_caps));
         // to change m_video before BRC Init and DDI init
         ModifiedVideoParams mod_params;
         mod_params.ModifyForBRC(m_video, true);
@@ -2097,7 +2097,7 @@ mfxStatus ImplementationAvc::Prd_LTR_Operation(DdiTask & task)
     return MFX_ERR_NONE;
 }
 
-mfxStatus ImplementationAvc::CalculateFrameCmplx(DdiTask const &task, mfxU16 &raca128)
+mfxStatus ImplementationAvc::CalculateFrameCmplx(DdiTask const &task, mfxU32 &raca128)
 {
     mfxFrameSurface1 *pSurfI = nullptr;
     pSurfI = m_core->GetNativeSurface(task.m_yuv);
@@ -2270,7 +2270,7 @@ void ImplementationAvc::PreserveTimeStamp(mfxU64 timeStamp)
                  [timeStamp](mfxU64 currTimeStamp)
                  {
                      return (currTimeStamp  != static_cast<mfxU64>(MFX_TIMESTAMP_UNKNOWN))
-                         && (static_cast<mfxI64>(currTimeStamp) > static_cast<mfxI64>(timeStamp));                         
+                         && (static_cast<mfxI64>(currTimeStamp) > static_cast<mfxI64>(timeStamp));
                  });
 
     m_timeStamps.insert(it, timeStamp);
@@ -2621,7 +2621,7 @@ mfxStatus ImplementationAvc::AsyncRoutine(mfxBitstream * bs)
         Hrd hrd = m_hrd; // tmp copy
         mfxU32 numEncCall = m_bDeferredFrame + 1;
         for (mfxU32 i = 0; i < numEncCall; i++)
-        {   
+        {
             DdiTaskIter task = FindFrameToStartEncode(m_video, m_lookaheadFinished.begin(), m_lookaheadFinished.end());
             if (task == m_lookaheadFinished.end())
                 break;
@@ -2632,7 +2632,7 @@ mfxStatus ImplementationAvc::AsyncRoutine(mfxBitstream * bs)
                 m_bDeferredFrame ++;
                 m_stagesToGo &= ~AsyncRoutineEmulator::STG_BIT_START_ENCODE;
                 break;
-            }            
+            }
 
             task->m_initCpbRemoval = hrd.GetInitCpbRemovalDelay();
             task->m_initCpbRemovalOffset = hrd.GetInitCpbRemovalDelayOffset();
@@ -2699,12 +2699,10 @@ mfxStatus ImplementationAvc::AsyncRoutine(mfxBitstream * bs)
                         return Error(sts);
                 }
 
-                task->m_frcmplx = 0;
-
                 if (IsExtBrcSceneChangeSupported(m_video)
                     && (task->GetFrameType() & MFX_FRAMETYPE_I) && (task->m_encOrder == 0 || m_video.mfx.GopPicSize != 1))
                 {
-                    mfxStatus sts = CalculateFrameCmplx(*task, task->m_frcmplx);
+                    mfxStatus sts = CalculateFrameCmplx(*task, task->m_brcFrameParams.FrameCmplx);
                     if (sts != MFX_ERR_NONE)
                         return Error(sts);
                 }
@@ -2746,7 +2744,8 @@ mfxStatus ImplementationAvc::AsyncRoutine(mfxBitstream * bs)
                 }
             }
 
-            task->m_singleFieldMode = IsOn(extFeiParams->SingleFieldProcessing);
+            // In case of progressive frames in PAFF mode need to switch the flag off to prevent m_fieldCounter changes
+            task->m_singleFieldMode = (task->m_fieldPicFlag != 0) && IsOn(extFeiParams->SingleFieldProcessing);
 
 #ifdef ENABLE_H264_MBFORCE_INTRA
             {
@@ -2854,7 +2853,7 @@ mfxStatus ImplementationAvc::AsyncRoutine(mfxBitstream * bs)
 
         }
         m_stagesToGo &= ~AsyncRoutineEmulator::STG_BIT_START_ENCODE;
-        
+
     }
 
 
@@ -2878,7 +2877,7 @@ mfxStatus ImplementationAvc::AsyncRoutine(mfxBitstream * bs)
                     bsDataLength += task->m_bsDataLength[task->m_fid[f]];
                 }
                 //printf("Real frameSize %d, repack %d\n", bsDataLength, task->m_repack);
-                bool bRecoding = false; 
+                bool bRecoding = false;
                 if (extOpt2.MaxSliceSize)
                 {
                     mfxU32   bsSizeAvail = mfxU32(m_tmpBsBuf.size());
