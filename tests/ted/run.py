@@ -74,7 +74,7 @@ class Runner(object):
     def _run(self, case_id, cmd, workdir, log):
         log.dump_header()
         log.separator()
-        for var, val in self.extra_env.items():
+        for var, val in list(self.extra_env.items()):
             log.log("export {}={}".format(var, val))
 
         log.log("cd {}".format(workdir.resolve()))
@@ -108,7 +108,7 @@ class Runner(object):
     def other_options(self, case):
         cmd = []
         # process remaining arguments
-        for k, v in case.items():
+        for k, v in list(case.items()):
             if isinstance(v, bool):
                 if v:
                     cmd.append("-{}".format(k))

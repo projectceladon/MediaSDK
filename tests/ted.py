@@ -120,28 +120,28 @@ if __name__ == '__main__':
     print("Disovering tests...")
     for test in discover.tests(base_dir, cfg, args.gold):
         if test_re and not test_re.search(test.name):
-            print('  {} - skipped'.format(test.name))
+            print(('  {} - skipped'.format(test.name)))
             continue
         if not args.gold and not test.gold_collected:
-            print('  {} - no gold results collected'.format(test.name))
+            print(('  {} - no gold results collected'.format(test.name)))
             continue
 
         tests_to_run.append(test)
-        print('  {} - {} cases'.format(test.name, len(test.cases)))
+        print(('  {} - {} cases'.format(test.name, len(test.cases))))
 
     if not tests_to_run:
         sys.exit("Nothing to run")
 
     n = len(tests_to_run)
     if args.gold:
-        print("\nCollecting gold results for {} test{}...".format(n, 's' if n > 1 else ''))
+        print(("\nCollecting gold results for {} test{}...".format(n, 's' if n > 1 else '')))
     else:
-        print("\nRunning {} test{}...".format(n, 's' if n > 1 else ''))
+        print(("\nRunning {} test{}...".format(n, 's' if n > 1 else '')))
 
     results = []
     total = passed = 0
     for test in tests_to_run:
-        print('  {}'.format(test.name))
+        print(('  {}'.format(test.name)))
         if args.gold:
             total_, passed_ = test.mine()
         else:
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         total += total_
         passed += passed_
 
-    print("\n{} of {} cases passed".format(passed, total))
+    print(("\n{} of {} cases passed".format(passed, total)))
 
     if not args.gold:
         write_test_results_report(cfg, results)

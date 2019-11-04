@@ -76,11 +76,10 @@ class ParFile(object):
         # replace input stream placeholders with full path to actual stream
         input_files = {}
         for m in re.finditer(r'\{([^\}]+)\}', text):
-            
             if m.group(1) != 'out':
                 input_files[m.group(0)] = cfg.stream_by_name(m.group(1))
 
-        for fn, stream in input_files.items():
+        for fn, stream in list(input_files.items()):
             text = text.replace(fn, str(stream.path))
 
 
