@@ -33,7 +33,7 @@ def tests(base_dir, cfg, gold):
         try:
             yield test.Test(fn, base_dir, cfg, gold)
         except Exception as ex:
-            print(" WARN: Can't parse test '{}' - {}".format(fn.name, ex))
+            print((" WARN: Can't parse test '{}' - {}".format(fn.name, ex)))
 
 
 def config(base_dir, gold):

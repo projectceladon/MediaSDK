@@ -59,7 +59,7 @@ if not hasattr(builtins, 'next'):
         return obj.next()
 
 
-VISIBILITY_PUBLIC, VISIBILITY_PROTECTED, VISIBILITY_PRIVATE = range(3)
+VISIBILITY_PUBLIC, VISIBILITY_PROTECTED, VISIBILITY_PRIVATE = list(range(3))
 
 FUNCTION_NONE = 0x00
 FUNCTION_CONST = 0x01
@@ -1693,7 +1693,7 @@ def PrintIndentifiers(filename, should_print):
     try:
         for node in builder.Generate():
             if should_print(node):
-                print(node.name)
+                print((node.name))
     except KeyboardInterrupt:
         return
     except:
@@ -1717,10 +1717,10 @@ def main(argv):
         if source is None:
             continue
 
-        print('Processing %s' % filename)
+        print(('Processing %s' % filename))
         builder = BuilderFromSource(source, filename)
         try:
-            entire_ast = filter(None, builder.Generate())
+            entire_ast = [_f for _f in builder.Generate() if _f]
         except KeyboardInterrupt:
             return
         except:
