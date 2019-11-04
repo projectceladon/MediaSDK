@@ -57,344 +57,344 @@ else:
   STACK_TRACE_TEMPLATE = ''
 
 EXPECTED_NON_EMPTY = {
-    u'tests': 23,
-    u'failures': 4,
-    u'disabled': 2,
-    u'errors': 0,
-    u'timestamp': u'*',
-    u'time': u'*',
-    u'ad_hoc_property': u'42',
-    u'name': u'AllTests',
-    u'testsuites': [
+    'tests': 23,
+    'failures': 4,
+    'disabled': 2,
+    'errors': 0,
+    'timestamp': '*',
+    'time': '*',
+    'ad_hoc_property': '42',
+    'name': 'AllTests',
+    'testsuites': [
         {
-            u'name': u'SuccessfulTest',
-            u'tests': 1,
-            u'failures': 0,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'SuccessfulTest',
+            'tests': 1,
+            'failures': 0,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'Succeeds',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'SuccessfulTest'
+                    'name': 'Succeeds',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'SuccessfulTest'
                 }
             ]
         },
         {
-            u'name': u'FailedTest',
-            u'tests': 1,
-            u'failures': 1,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'FailedTest',
+            'tests': 1,
+            'failures': 1,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'Fails',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'FailedTest',
-                    u'failures': [
+                    'name': 'Fails',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'FailedTest',
+                    'failures': [
                         {
-                            u'failure':
-                                u'gtest_xml_output_unittest_.cc:*\n'
-                                u'Expected equality of these values:\n'
-                                u'  1\n  2' + STACK_TRACE_TEMPLATE,
-                            u'type': u''
+                            'failure':
+                                'gtest_xml_output_unittest_.cc:*\n'
+                                'Expected equality of these values:\n'
+                                '  1\n  2' + STACK_TRACE_TEMPLATE,
+                            'type': ''
                         }
                     ]
                 }
             ]
         },
         {
-            u'name': u'DisabledTest',
-            u'tests': 1,
-            u'failures': 0,
-            u'disabled': 1,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'DisabledTest',
+            'tests': 1,
+            'failures': 0,
+            'disabled': 1,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'DISABLED_test_not_run',
-                    u'status': u'NOTRUN',
-                    u'time': u'*',
-                    u'classname': u'DisabledTest'
+                    'name': 'DISABLED_test_not_run',
+                    'status': 'NOTRUN',
+                    'time': '*',
+                    'classname': 'DisabledTest'
                 }
             ]
         },
         {
-            u'name': u'MixedResultTest',
-            u'tests': 3,
-            u'failures': 1,
-            u'disabled': 1,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'MixedResultTest',
+            'tests': 3,
+            'failures': 1,
+            'disabled': 1,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'Succeeds',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'MixedResultTest'
+                    'name': 'Succeeds',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'MixedResultTest'
                 },
                 {
-                    u'name': u'Fails',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'MixedResultTest',
-                    u'failures': [
+                    'name': 'Fails',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'MixedResultTest',
+                    'failures': [
                         {
-                            u'failure':
-                                u'gtest_xml_output_unittest_.cc:*\n'
-                                u'Expected equality of these values:\n'
-                                u'  1\n  2' + STACK_TRACE_TEMPLATE,
-                            u'type': u''
+                            'failure':
+                                'gtest_xml_output_unittest_.cc:*\n'
+                                'Expected equality of these values:\n'
+                                '  1\n  2' + STACK_TRACE_TEMPLATE,
+                            'type': ''
                         },
                         {
-                            u'failure':
-                                u'gtest_xml_output_unittest_.cc:*\n'
-                                u'Expected equality of these values:\n'
-                                u'  2\n  3' + STACK_TRACE_TEMPLATE,
-                            u'type': u''
+                            'failure':
+                                'gtest_xml_output_unittest_.cc:*\n'
+                                'Expected equality of these values:\n'
+                                '  2\n  3' + STACK_TRACE_TEMPLATE,
+                            'type': ''
                         }
                     ]
                 },
                 {
-                    u'name': u'DISABLED_test',
-                    u'status': u'NOTRUN',
-                    u'time': u'*',
-                    u'classname': u'MixedResultTest'
+                    'name': 'DISABLED_test',
+                    'status': 'NOTRUN',
+                    'time': '*',
+                    'classname': 'MixedResultTest'
                 }
             ]
         },
         {
-            u'name': u'XmlQuotingTest',
-            u'tests': 1,
-            u'failures': 1,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'XmlQuotingTest',
+            'tests': 1,
+            'failures': 1,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'OutputsCData',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'XmlQuotingTest',
-                    u'failures': [
+                    'name': 'OutputsCData',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'XmlQuotingTest',
+                    'failures': [
                         {
-                            u'failure':
-                                u'gtest_xml_output_unittest_.cc:*\n'
-                                u'Failed\nXML output: <?xml encoding="utf-8">'
-                                u'<top><![CDATA[cdata text]]></top>' +
+                            'failure':
+                                'gtest_xml_output_unittest_.cc:*\n'
+                                'Failed\nXML output: <?xml encoding="utf-8">'
+                                '<top><![CDATA[cdata text]]></top>' +
                                 STACK_TRACE_TEMPLATE,
-                            u'type': u''
+                            'type': ''
                         }
                     ]
                 }
             ]
         },
         {
-            u'name': u'InvalidCharactersTest',
-            u'tests': 1,
-            u'failures': 1,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'InvalidCharactersTest',
+            'tests': 1,
+            'failures': 1,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'InvalidCharactersInMessage',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'InvalidCharactersTest',
-                    u'failures': [
+                    'name': 'InvalidCharactersInMessage',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'InvalidCharactersTest',
+                    'failures': [
                         {
-                            u'failure':
-                                u'gtest_xml_output_unittest_.cc:*\n'
-                                u'Failed\nInvalid characters in brackets'
-                                u' [\x01\x02]' + STACK_TRACE_TEMPLATE,
-                            u'type': u''
+                            'failure':
+                                'gtest_xml_output_unittest_.cc:*\n'
+                                'Failed\nInvalid characters in brackets'
+                                ' [\x01\x02]' + STACK_TRACE_TEMPLATE,
+                            'type': ''
                         }
                     ]
                 }
             ]
         },
         {
-            u'name': u'PropertyRecordingTest',
-            u'tests': 4,
-            u'failures': 0,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'SetUpTestCase': u'yes',
-            u'TearDownTestCase': u'aye',
-            u'testsuite': [
+            'name': 'PropertyRecordingTest',
+            'tests': 4,
+            'failures': 0,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'SetUpTestCase': 'yes',
+            'TearDownTestCase': 'aye',
+            'testsuite': [
                 {
-                    u'name': u'OneProperty',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'PropertyRecordingTest',
-                    u'key_1': u'1'
+                    'name': 'OneProperty',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'PropertyRecordingTest',
+                    'key_1': '1'
                 },
                 {
-                    u'name': u'IntValuedProperty',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'PropertyRecordingTest',
-                    u'key_int': u'1'
+                    'name': 'IntValuedProperty',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'PropertyRecordingTest',
+                    'key_int': '1'
                 },
                 {
-                    u'name': u'ThreeProperties',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'PropertyRecordingTest',
-                    u'key_1': u'1',
-                    u'key_2': u'2',
-                    u'key_3': u'3'
+                    'name': 'ThreeProperties',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'PropertyRecordingTest',
+                    'key_1': '1',
+                    'key_2': '2',
+                    'key_3': '3'
                 },
                 {
-                    u'name': u'TwoValuesForOneKeyUsesLastValue',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'PropertyRecordingTest',
-                    u'key_1': u'2'
+                    'name': 'TwoValuesForOneKeyUsesLastValue',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'PropertyRecordingTest',
+                    'key_1': '2'
                 }
             ]
         },
         {
-            u'name': u'NoFixtureTest',
-            u'tests': 3,
-            u'failures': 0,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'NoFixtureTest',
+            'tests': 3,
+            'failures': 0,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'RecordProperty',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'NoFixtureTest',
-                    u'key': u'1'
+                    'name': 'RecordProperty',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'NoFixtureTest',
+                    'key': '1'
                 },
                 {
-                    u'name': u'ExternalUtilityThatCallsRecordIntValuedProperty',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'NoFixtureTest',
-                    u'key_for_utility_int': u'1'
+                    'name': 'ExternalUtilityThatCallsRecordIntValuedProperty',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'NoFixtureTest',
+                    'key_for_utility_int': '1'
                 },
                 {
-                    u'name':
-                        u'ExternalUtilityThatCallsRecordStringValuedProperty',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'NoFixtureTest',
-                    u'key_for_utility_string': u'1'
+                    'name':
+                        'ExternalUtilityThatCallsRecordStringValuedProperty',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'NoFixtureTest',
+                    'key_for_utility_string': '1'
                 }
             ]
         },
         {
-            u'name': u'TypedTest/0',
-            u'tests': 1,
-            u'failures': 0,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'TypedTest/0',
+            'tests': 1,
+            'failures': 0,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'HasTypeParamAttribute',
-                    u'type_param': u'int',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'TypedTest/0'
+                    'name': 'HasTypeParamAttribute',
+                    'type_param': 'int',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'TypedTest/0'
                 }
             ]
         },
         {
-            u'name': u'TypedTest/1',
-            u'tests': 1,
-            u'failures': 0,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'TypedTest/1',
+            'tests': 1,
+            'failures': 0,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'HasTypeParamAttribute',
-                    u'type_param': u'long',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'TypedTest/1'
+                    'name': 'HasTypeParamAttribute',
+                    'type_param': 'long',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'TypedTest/1'
                 }
             ]
         },
         {
-            u'name': u'Single/TypeParameterizedTestCase/0',
-            u'tests': 1,
-            u'failures': 0,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'Single/TypeParameterizedTestCase/0',
+            'tests': 1,
+            'failures': 0,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'HasTypeParamAttribute',
-                    u'type_param': u'int',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'Single/TypeParameterizedTestCase/0'
+                    'name': 'HasTypeParamAttribute',
+                    'type_param': 'int',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'Single/TypeParameterizedTestCase/0'
                 }
             ]
         },
         {
-            u'name': u'Single/TypeParameterizedTestCase/1',
-            u'tests': 1,
-            u'failures': 0,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'Single/TypeParameterizedTestCase/1',
+            'tests': 1,
+            'failures': 0,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'HasTypeParamAttribute',
-                    u'type_param': u'long',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'Single/TypeParameterizedTestCase/1'
+                    'name': 'HasTypeParamAttribute',
+                    'type_param': 'long',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'Single/TypeParameterizedTestCase/1'
                 }
             ]
         },
         {
-            u'name': u'Single/ValueParamTest',
-            u'tests': 4,
-            u'failures': 0,
-            u'disabled': 0,
-            u'errors': 0,
-            u'time': u'*',
-            u'testsuite': [
+            'name': 'Single/ValueParamTest',
+            'tests': 4,
+            'failures': 0,
+            'disabled': 0,
+            'errors': 0,
+            'time': '*',
+            'testsuite': [
                 {
-                    u'name': u'HasValueParamAttribute/0',
-                    u'value_param': u'33',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'Single/ValueParamTest'
+                    'name': 'HasValueParamAttribute/0',
+                    'value_param': '33',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'Single/ValueParamTest'
                 },
                 {
-                    u'name': u'HasValueParamAttribute/1',
-                    u'value_param': u'42',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'Single/ValueParamTest'
+                    'name': 'HasValueParamAttribute/1',
+                    'value_param': '42',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'Single/ValueParamTest'
                 },
                 {
-                    u'name': u'AnotherTestThatHasValueParamAttribute/0',
-                    u'value_param': u'33',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'Single/ValueParamTest'
+                    'name': 'AnotherTestThatHasValueParamAttribute/0',
+                    'value_param': '33',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'Single/ValueParamTest'
                 },
                 {
-                    u'name': u'AnotherTestThatHasValueParamAttribute/1',
-                    u'value_param': u'42',
-                    u'status': u'RUN',
-                    u'time': u'*',
-                    u'classname': u'Single/ValueParamTest'
+                    'name': 'AnotherTestThatHasValueParamAttribute/1',
+                    'value_param': '42',
+                    'status': 'RUN',
+                    'time': '*',
+                    'classname': 'Single/ValueParamTest'
                 }
             ]
         }
@@ -402,39 +402,39 @@ EXPECTED_NON_EMPTY = {
 }
 
 EXPECTED_FILTERED = {
-    u'tests': 1,
-    u'failures': 0,
-    u'disabled': 0,
-    u'errors': 0,
-    u'time': u'*',
-    u'timestamp': u'*',
-    u'name': u'AllTests',
-    u'ad_hoc_property': u'42',
-    u'testsuites': [{
-        u'name': u'SuccessfulTest',
-        u'tests': 1,
-        u'failures': 0,
-        u'disabled': 0,
-        u'errors': 0,
-        u'time': u'*',
-        u'testsuite': [{
-            u'name': u'Succeeds',
-            u'status': u'RUN',
-            u'time': u'*',
-            u'classname': u'SuccessfulTest',
+    'tests': 1,
+    'failures': 0,
+    'disabled': 0,
+    'errors': 0,
+    'time': '*',
+    'timestamp': '*',
+    'name': 'AllTests',
+    'ad_hoc_property': '42',
+    'testsuites': [{
+        'name': 'SuccessfulTest',
+        'tests': 1,
+        'failures': 0,
+        'disabled': 0,
+        'errors': 0,
+        'time': '*',
+        'testsuite': [{
+            'name': 'Succeeds',
+            'status': 'RUN',
+            'time': '*',
+            'classname': 'SuccessfulTest',
         }]
     }],
 }
 
 EXPECTED_EMPTY = {
-    u'tests': 0,
-    u'failures': 0,
-    u'disabled': 0,
-    u'errors': 0,
-    u'time': u'*',
-    u'timestamp': u'*',
-    u'name': u'AllTests',
-    u'testsuites': [],
+    'tests': 0,
+    'failures': 0,
+    'disabled': 0,
+    'errors': 0,
+    'time': '*',
+    'timestamp': '*',
+    'name': 'AllTests',
+    'testsuites': [],
 }
 
 GTEST_PROGRAM_PATH = gtest_test_utils.GetTestExecutablePath(GTEST_PROGRAM_NAME)
@@ -512,9 +512,9 @@ class GTestJsonOutputUnitTest(gtest_test_utils.TestCase):
     p = gtest_test_utils.Subprocess(
         [gtest_prog_path, '%s=json' % GTEST_OUTPUT_FLAG],
         working_dir=gtest_test_utils.GetTempDir())
-    self.assert_(p.exited)
-    self.assertEquals(0, p.exit_code)
-    self.assert_(os.path.isfile(output_file))
+    self.assertTrue(p.exited)
+    self.assertEqual(0, p.exit_code)
+    self.assertTrue(os.path.isfile(output_file))
 
   def testSuppressedJsonOutput(self):
     """Verifies that no JSON output is generated.
@@ -538,13 +538,13 @@ class GTestJsonOutputUnitTest(gtest_test_utils.TestCase):
           p.terminated_by_signal,
           '%s was killed by signal %d' % (GTEST_PROGRAM_NAME, p.signal))
     else:
-      self.assert_(p.exited)
-      self.assertEquals(1, p.exit_code,
+      self.assertTrue(p.exited)
+      self.assertEqual(1, p.exit_code,
                         "'%s' exited with code %s, which doesn't match "
                         'the expected exit code %s.'
                         % (command, p.exit_code, 1))
 
-    self.assert_(not os.path.isfile(json_path))
+    self.assertTrue(not os.path.isfile(json_path))
 
   def testFilteredTestJsonOutput(self):
     """Verifies JSON output when a filter is applied.
@@ -576,11 +576,11 @@ class GTestJsonOutputUnitTest(gtest_test_utils.TestCase):
     )
     p = gtest_test_utils.Subprocess(command)
     if p.terminated_by_signal:
-      self.assert_(False,
+      self.assertTrue(False,
                    '%s was killed by signal %d' % (gtest_prog_name, p.signal))
     else:
-      self.assert_(p.exited)
-      self.assertEquals(expected_exit_code, p.exit_code,
+      self.assertTrue(p.exited)
+      self.assertEqual(expected_exit_code, p.exit_code,
                         "'%s' exited with code %s, which doesn't match "
                         'the expected exit code %s.'
                         % (command, p.exit_code, expected_exit_code))

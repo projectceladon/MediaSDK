@@ -114,8 +114,8 @@ class GTestListTestsOutputUnitTest(gtest_test_utils.TestCase):
     p = gtest_test_utils.Subprocess(
         command, env=environ_copy, working_dir=gtest_test_utils.GetTempDir())
 
-    self.assert_(p.exited)
-    self.assertEquals(0, p.exit_code)
+    self.assertTrue(p.exited)
+    self.assertEqual(0, p.exit_code)
     with open(file_path) as f:
       result = f.read()
     return result
@@ -128,7 +128,7 @@ class GTestListTestsOutputUnitTest(gtest_test_utils.TestCase):
     for actual_line in actual_lines:
       expected_line = expected_lines[line_count]
       expected_line_re = re.compile(expected_line.strip())
-      self.assert_(
+      self.assertTrue(
           expected_line_re.match(actual_line.strip()),
           ('actual output of "%s",\n'
            'which does not match expected regex of "%s"\n'
