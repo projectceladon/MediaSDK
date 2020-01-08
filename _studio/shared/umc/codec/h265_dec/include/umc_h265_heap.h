@@ -213,7 +213,10 @@ public:
         {
             item = Item::Allocate(this, size, isTyped);
         }
-
+        else
+        {
+            throw MFX_ERR_NULL_PTR;
+        }
         return item->m_Ptr;
     }
 
