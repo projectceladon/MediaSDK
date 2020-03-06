@@ -506,7 +506,10 @@ void PackerVA::PackSliceParams(H265Slice const* pSlice, size_t sliceNum, bool is
 
     for(int32_t iDir = 0; iDir < 2; iDir++)
     {
-        const H265DecoderRefPicList::ReferenceInformation* pRefPicList = pCurrentFrame->GetRefPicList(pSlice->GetSliceNum(), iDir)->m_refPicList;
+        const UMC_HEVC_DECODER::H265DecoderRefPicList* pRefPicListTmp = pCurrentFrame->GetRefPicList(pSlice->GetSliceNum(),iDir);
+        if (NULL == pRefPicListTmp)
+            return;
+        const H265DecoderRefPicList::ReferenceInformation* pRefPicList = pRefPicListTmp->m_refPicList;
 
         EnumRefPicList eRefPicList = ( iDir == 1 ? REF_PIC_LIST_1 : REF_PIC_LIST_0 );
         int32_t const num_active_ref = pSlice->getNumRefIdx(eRefPicList);
