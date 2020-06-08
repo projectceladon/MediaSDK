@@ -123,7 +123,8 @@ namespace UMC_HEVC_DECODER
             for (uint32_t i = 0; i < count; ++i)
             {
                 auto slice = fi->GetSlice(i);
-                assert(slice);
+		  if(NULL == slice)
+		      throw h265_exception(UMC::UMC_ERR_NULL_PTR);
 
                 auto const step = GetEntryPointOffsetStep(slice);
 
