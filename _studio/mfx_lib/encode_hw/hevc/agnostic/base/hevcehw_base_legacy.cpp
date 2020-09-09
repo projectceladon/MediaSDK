@@ -4514,6 +4514,8 @@ mfxStatus Legacy::CopyConfigurable(const ParamSupport& sprt, const mfxVideoParam
         bool               bCopyPar   = pEbIn && copyIt != sprt.m_ebCopySupported.end();
         bool               bCopyPtr   = copyPtrsIt != sprt.m_ebCopyPtrs.end();
 
+        if(!pEbTmp)
+            throw MFX_ERR_NULL_PTR;
         *pEbTmp = *pEbOut;
 
         if (bCopyPtr)

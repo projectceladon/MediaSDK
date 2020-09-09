@@ -184,6 +184,9 @@ mfxU16 HEVCEHW::Base::GetMinLevel(
 
     while (bSearch)
     {
+        if (lidx >= MaxLidx)
+            throw MFX_ERR_INVALID_VIDEO_PARAM;
+
         mfxU32 MaxLumaPs   = TableA1[lidx][0];
         mfxU32 MaxCPB      = TableA1[lidx][1+tidx];
         mfxU32 MaxSSPP     = TableA1[lidx][3];

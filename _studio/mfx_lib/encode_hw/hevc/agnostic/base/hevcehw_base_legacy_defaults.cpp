@@ -322,6 +322,8 @@ public:
 
             bDone |= !NumRefActive;
             bDone |= !bDone && !extRef && std::fill_n(*NumRefActive, 8, defaultRef);
+            if(!extRef)
+                throw MFX_ERR_NULL_PTR;
             bDone |= !bDone && std::transform(
                 *extRef
                 , std::end(*extRef)
@@ -345,6 +347,9 @@ public:
             extRefBL0 = &pCO3->NumRefActiveBL0;
             extRefBL1 = &pCO3->NumRefActiveBL1;
         }
+
+        if(!extRefP || !extRefBL0 || !extRefBL1)
+            throw MFX_ERR_NULL_PTR;
 
         bExternal |= SetDefaultNRef(extRefP, maxFwd, pP);
         bExternal |= SetDefaultNRef(extRefBL0, maxFwd, pBL0);
