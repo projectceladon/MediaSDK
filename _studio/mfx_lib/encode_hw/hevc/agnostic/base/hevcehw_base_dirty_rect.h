@@ -44,7 +44,8 @@ namespace Base
 #include "hevcehw_decl_blocks.h"
 
         DirtyRect(mfxU32 FeatureId)
-            : FeatureBase(FeatureId)
+            : FeatureBase(FeatureId),
+            m_taskToRects()
         {}
 
         typedef std::remove_reference<decltype (mfxExtDirtyRect::Rect[0])>::type RectData;
