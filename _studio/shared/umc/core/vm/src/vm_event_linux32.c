@@ -59,6 +59,7 @@ int32_t vm_event_is_valid(vm_event *event)
 /* Init an event. Event is created unset. return 1 if success */
 vm_status vm_event_init(vm_event *event, int32_t manual, int32_t state)
 {
+    pthread_condattr_t cond_attr;
     int res = 0;
 
     /* check error(s) */
@@ -67,16 +68,23 @@ vm_status vm_event_init(vm_event *event, int32_t manual, int32_t state)
 
     event->manual = manual;
     event->state = state ? 1 : 0;
-    res = pthread_cond_init(&event->cond, 0);
+    res = pthread_condattr_init(&cond_attr);
     if (!res)
     {
-        res = pthread_mutex_init(&event->mutex, 0);
-        if (res)
+        pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+
+        res = pthread_cond_init(&event->cond, &cond_attr);
+        if (!res)
         {
-            int cres = pthread_cond_destroy(&event->cond);
-            assert(!cres); // we experienced undefined behavior
-            vm_event_set_invalid_internal(event);
+            res = pthread_mutex_init(&event->mutex, 0);
+            if (res)
+            {
+                int cres = pthread_cond_destroy(&event->cond);
+                assert(!cres); // we experienced undefined behavior
+                vm_event_set_invalid_internal(event);
+            }
         }
+        pthread_condattr_destroy(&cond_attr);
     }
 
     return (res)? VM_OPERATION_FAILED: VM_OK;
@@ -292,16 +300,15 @@ vm_status vm_event_timed_wait(vm_event *event, uint32_t msec)
                 }
                 else
                 {
-                    struct timeval tval;
                     struct timespec tspec;
                     int32_t i_res;
-                    unsigned long long micro_sec;
+                    unsigned long long nano_sec;
 
-                    gettimeofday(&tval, NULL);
-                    // NOTE: micro_sec _should_ be unsigned long long, not uint32_t to avoid overflow
-                    micro_sec = 1000 * msec + tval.tv_usec;
-                    tspec.tv_sec = tval.tv_sec + (uint32_t)(micro_sec / 1000000);
-                    tspec.tv_nsec = (uint32_t)(micro_sec % 1000000) * 1000;
+                    clock_gettime(CLOCK_MONOTONIC, &tspec);
+                    // NOTE: nano_sec _should_ be unsigned long long, not uint32_t to avoid overflow
+                    nano_sec = 1000000 * msec + tspec.tv_nsec;
+                    tspec.tv_sec += (uint32_t)(nano_sec / 1000000000);
+                    tspec.tv_nsec = (uint32_t)(nano_sec % 1000000000);
                     i_res = 0;
 
                     while (!i_res && !event->state)

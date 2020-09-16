@@ -60,7 +60,7 @@ int32_t vm_cond_is_valid(vm_cond *cond)
 /* Init a condvar, return 1 if successful */
 vm_status vm_cond_init(vm_cond *cond)
 {
-//    pthread_condattr_t cond_attr;
+    pthread_condattr_t cond_attr;
     int res = 0;
 
     /* check error(s) */
@@ -69,16 +69,17 @@ vm_status vm_cond_init(vm_cond *cond)
 
     vm_cond_destroy(cond);
 
-//    res = pthread_condattr_init(&cond_attr);
-//    if (!res)
+    res = pthread_condattr_init(&cond_attr);
+    if (!res)
     {
-        res = pthread_cond_init(&cond->handle, NULL);
+        pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+        res = pthread_cond_init(&cond->handle, &cond_attr);
         cond->is_valid = !res;
         if (res)
         {
             vm_cond_set_invalid_internal(cond);
         }
-//        pthread_condattr_destroy(&mcond_attr);
+        pthread_condattr_destroy(&cond_attr);
     }
     return (res)? VM_OPERATION_FAILED: VM_OK;
 } /* vm_status vm_cond_init(vm_cond *cond) */
@@ -114,16 +115,15 @@ vm_status vm_cond_timedwait(vm_cond *cond, vm_mutex *mutex, uint32_t msec)
 
     if (cond->is_valid && mutex->is_valid)
     {
-        struct timeval tval;
         struct timespec tspec;
         int32_t res;
-        unsigned long long micro_sec;
+        unsigned long long nano_sec;
 
-        gettimeofday(&tval, NULL);
-        // NOTE: micro_sec _should_ be unsigned long long, not uint32_t to avoid overflow
-        micro_sec = 1000 * msec + tval.tv_usec;
-        tspec.tv_sec = tval.tv_sec + (uint32_t)(micro_sec / 1000000);
-        tspec.tv_nsec = (uint32_t)(micro_sec % 1000000) * 1000;
+        clock_gettime(CLOCK_MONOTONIC, &tspec);
+        // NOTE: nano_sec _should_ be unsigned long long, not uint32_t to avoid overflow
+        nano_sec = 1000000 * msec + tspec.tv_nsec;
+        tspec.tv_sec += (uint32_t)(nano_sec / 1000000000);
+        tspec.tv_nsec = (uint32_t)(nano_sec % 1000000000);
 
         res = pthread_cond_timedwait(&cond->handle, &mutex->handle, &tspec);
         if (0 == res)
@@ -147,16 +147,15 @@ vm_status vm_cond_timed_uwait(vm_cond *cond, vm_mutex *mutex, vm_tick usec)
 
     if (cond->is_valid && mutex->is_valid)
     {
-        struct timeval tval;
         struct timespec tspec;
         int32_t res;
-        unsigned long long micro_sec;
+        unsigned long long nano_sec;
 
-        gettimeofday(&tval, NULL);
-        // NOTE: micro_sec _should_ be unsigned long long, not uint32_t to avoid overflow
-        micro_sec = usec + tval.tv_usec;
-        tspec.tv_sec = tval.tv_sec + (uint32_t)(micro_sec / 1000000);
-        tspec.tv_nsec = (uint32_t)(micro_sec % 1000000) * 1000;
+        clock_gettime(CLOCK_MONOTONIC, &tspec);
+        // NOTE: nano_sec _should_ be unsigned long long, not uint32_t to avoid overflow
+        nano_sec = 1000 * usec + tspec.tv_nsec;
+        tspec.tv_sec += (uint32_t)(nano_sec / 1000000000);
+        tspec.tv_nsec = (uint32_t)(nano_sec % 1000000000);
 
         res = pthread_cond_timedwait(&cond->handle, &mutex->handle, &tspec);
         if (0 == res)
