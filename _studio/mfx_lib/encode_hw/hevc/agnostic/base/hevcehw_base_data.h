@@ -1397,7 +1397,10 @@ namespace Base
         const TEB* pEB = ExtBuffer::Get(Task::Common::Get(task).ctrl);
         if (pEB)
             return *pEB;
-        return ExtBuffer::Get(Glob::VideoParam::Get(glob));
+        const TEB* pEB2 = ExtBuffer::Get(Glob::VideoParam::Get(glob));
+        if(!pEB2)
+            throw MFX_ERR_NULL_PTR;
+        return *pEB2;
     }
 
 } //namespace Base
