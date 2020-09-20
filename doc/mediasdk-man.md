@@ -8529,8 +8529,6 @@ SDK API 1.30 adds `MFX_EXTBUFF_CENC_PARAM`.
 
 SDK API 1.34 adds `MFX_EXTBUFF_ENCODER_IPCM_AREA`, `MFX_EXTBUFF_INSERT_HEADERS` and `MFX_EXTBUFF_AV1_FILM_GRAIN_PARAM`.
 
-SDK API **TBD** adds `MFX_EXTBUFF_TASK_DEPENDENCY` and `MFX_EXTBUFF_VPP_PROCAMP` use for per-frame processing configuration.
-
 See additional change history in the structure definitions.
 
 ## <a id='ExtMemBufferType'>ExtMemBufferType</a>
@@ -9393,8 +9391,6 @@ SDK API 1.27 adds `MFX_PLATFORM_ICELAKE`.
 SDK API 1.31 adds `MFX_PLATFORM_ELKHARTLAKE`, `MFX_PLATFORM_JASPERLAKE`, `MFX_PLATFORM_TIGERLAKE`.
 
 SDK API 1.34 adds `MFX_PLATFORM_KEEMBAY`.
-
-SDK API **TBD** adds `MFX_PLATFORM_LAKEFIELD`.
 
 ## <a id='mfxMediaAdapterType'>mfxMediaAdapterType</a>
 
