@@ -264,6 +264,9 @@ Status H264BRC::InitHRD()
     }
   }
 
+  if ((profile_ind < 0) || (level_ind < 0))
+      return UMC_ERR_INVALID_PARAMS;
+
   if (maxBitrate < (unsigned long long)mParams.targetBitrate) {
     maxBitrate = (unsigned long long)mParams.targetBitrate;
     for (; profile_ind <= H264_LIMIT_TABLE_HIGH_PROFILE; profile_ind++) {

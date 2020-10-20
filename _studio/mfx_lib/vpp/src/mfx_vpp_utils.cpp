@@ -2064,6 +2064,8 @@ void SignalPlatformCapabilities(
         mfxU32* pDO_USE_List = NULL;
         mfxU32  douseCount = 0;
         GetDoUseFilterList( (mfxVideoParam*)&param, &pDO_USE_List, &douseCount );
+        if(!pDO_USE_List)
+            throw MFX_ERR_NULL_PTR;
         if(douseCount > 0)
         {
             size_t fCount = MFX_MIN(supportedList.size(), douseCount);
