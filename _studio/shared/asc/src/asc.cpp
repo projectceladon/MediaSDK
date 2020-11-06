@@ -33,6 +33,9 @@
 #include "motion_estimation_engine.h"
 #include <limits.h>
 #include <algorithm>
+#ifdef ANDROID
+#include <cmath>
+#endif
 
 using std::min;
 using std::max;
