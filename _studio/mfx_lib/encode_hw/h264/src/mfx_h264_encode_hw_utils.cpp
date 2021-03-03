@@ -1907,7 +1907,7 @@ mfxStatus TaskManager::AssignTask(
         std::vector<Surface>::iterator it = std::find_if(
             m_bitstreams.begin(),
             m_bitstreams.end(),
-            std::mem_fun_ref(&Surface::IsFree));
+            std::mem_fn(&Surface::IsFree));
         if (it == m_bitstreams.end())
             return MFX_WRN_DEVICE_BUSY;
 
@@ -1918,7 +1918,7 @@ mfxStatus TaskManager::AssignTask(
             std::vector<Surface>::iterator it2 = std::find_if(
                 it + 1,
                 m_bitstreams.end(),
-                std::mem_fun_ref(&Surface::IsFree));
+                std::mem_fn(&Surface::IsFree));
             if (it2 == m_bitstreams.end())
                 return MFX_WRN_DEVICE_BUSY;
 
