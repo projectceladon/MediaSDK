@@ -143,7 +143,7 @@ X indicates a supported function
 
 NOTE: Please use *Query* functions to check feature availability on any given machine at runtime. Availability of features depends on hardware capabilities as well as driver version.
 
-Please see the Intel® Media SDK Reference Manual for details *“&lt;sdk-install-folder&gt;/doc/mediasdk-man.pdf”*.
+Please see the Intel® Media SDK Reference Manual for details *“&lt;sdk-install-folder&gt;/doc/mediasdk-man.md”*.
 
 Please also check the collateral materials: https://dgpu-docs.intel.com/devices/iris-xe-max-graphics/guides/media.html
 
