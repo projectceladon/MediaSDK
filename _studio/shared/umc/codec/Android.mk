@@ -13,7 +13,8 @@ MFX_LOCAL_DIRS_IMPL := \
     h264_dec \
     vc1_dec \
     jpeg_dec \
-    vp9_dec
+    vp9_dec \
+    av1_dec
 
 MFX_LOCAL_SRC_FILES := \
   $(patsubst $(LOCAL_PATH)/%, %, $(foreach dir, $(MFX_LOCAL_DIRS), $(wildcard $(LOCAL_PATH)/$(dir)/src/*.cpp)))
@@ -37,7 +38,10 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS := \
     $(MFX_CFLAGS_INTERNAL) \
-    -Wall -Werror
+    -Wno-error \
+    -Wno-unused-parameter \
+    -Wno-deprecated-declarations
+
 LOCAL_CFLAGS_32 := $(MFX_CFLAGS_INTERNAL_32)
 LOCAL_CFLAGS_64 := $(MFX_CFLAGS_INTERNAL_64)
 
@@ -61,7 +65,9 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS := \
     $(MFX_CFLAGS_INTERNAL_HW) \
-    -Wall -Werror
+    -Wno-error \
+    -Wno-unused-parameter
+
 LOCAL_CFLAGS_32 := $(MFX_CFLAGS_INTERNAL_32)
 LOCAL_CFLAGS_64 := $(MFX_CFLAGS_INTERNAL_64)
 
