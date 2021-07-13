@@ -9,7 +9,14 @@
 #   MFX_INCLUDES_INTERNAL_HW - all include paths needed to build MFX HW targets
 
 MFX_CFLAGS_INTERNAL := $(MFX_CFLAGS)
-MFX_CFLAGS_INTERNAL_HW := $(MFX_CFLAGS_INTERNAL) -DMFX_VA
+MFX_CFLAGS_INTERNAL_HW := $(MFX_CFLAGS_INTERNAL) -DMFX_VA \
+	-Wno-error \
+	-Wno-unused-parameter \
+	-Wno-deprecated-declarations \
+	-Wno-implicit-fallthrough \
+	-Wno-missing-field-initializers
+
+
 MFX_CFLAGS_INTERNAL_32 := -DLINUX32
 MFX_CFLAGS_INTERNAL_64 := -DLINUX32 -DLINUX64
 
