@@ -3,7 +3,7 @@ LOCAL_PATH:= $(MFX_HOME)/_studio
 # =============================================================================
 
 MFX_LOCAL_DECODERS := h265 h264 mpeg2 vc1 mjpeg vp8 vp9 av1
-MFX_LOCAL_ENCODERS := h265 h264 mjpeg vp9
+MFX_LOCAL_ENCODERS := hevc h264 mjpeg vp9
 
 # Setting subdirectories to march thru
 MFX_LOCAL_DIRS := \
@@ -48,6 +48,7 @@ MFX_LOCAL_SRC_FILES_HW += \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_constraints.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_dirty_rect.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_dpb_report.cpp \
+    mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_la_ext_brc.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_encoded_frame_info.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_ext_brc.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_hdr_sei.cpp \
