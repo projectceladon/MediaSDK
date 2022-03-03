@@ -71,7 +71,7 @@ if( Linux OR Darwin )
 
   set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -pipe -fPIC ${c_warnings} ${no_warnings} ${common_flags}")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe -fPIC ${cxx_warnings} ${no_warnings} ${common_flags}")
-  append("-fPIE -pie" CMAKE_EXE_LINKER_FLAGS)
+  append("-fPIE" CMAKE_EXE_LINKER_FLAGS)
 
   # CACHE + FORCE should be used only here to make sure that this parameters applied globally
   # End user is responsible to adjust configuration parameters further if needed. Here
