@@ -77,7 +77,7 @@ MFX_CFLAGS += \
 #  Security
 MFX_CFLAGS += \
   -fstack-protector \
-  -fPIE -fPIC -pie \
+  -fPIE -fPIC \
   -O2 -D_FORTIFY_SOURCE=2 \
   -Wformat -Wformat-security \
   -fexceptions -frtti
@@ -117,7 +117,7 @@ MFX_INCLUDES_LIBVA := $(TARGET_OUT_HEADERS)/libva
 
 # Setting usual link flags
 MFX_LDFLAGS := \
-  -z noexecstack \
+  -z noexecstack -pie \
   -z relro -z now
 
 # Setting vendor
