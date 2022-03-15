@@ -28,5 +28,6 @@
 #define MFX_Q     0x09
 #define MFX_R     0x0a
 #define MFX_S     0x0b
+#define MFX_T     0x0d
 
 #endif // #ifndef __MFX_CONFIG_H__
