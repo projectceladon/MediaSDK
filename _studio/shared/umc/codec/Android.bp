@@ -1,0 +1,78 @@
+cc_library_headers {
+    name: "libumc_codecs_headers",
+
+    export_include_dirs: [
+        "brc/include",
+        "h264_enc/include",
+        "vc1_common/include",
+        "jpeg_common/include",
+        "mpeg2_dec/include",
+        "h265_dec/include",
+        "h264_dec/include",
+        "vc1_dec/include",
+        "jpeg_dec/include",
+        "vp9_dec/include",
+        "av1_dec/include"
+    ],
+
+    vendor: true,
+}
+
+cc_library_static {
+    name: "libumc_codecs_merged_bp",
+
+    defaults: ["mfx_defs_defaults"],
+
+    srcs: [
+        "brc/src/umc_brc.cpp",
+        "brc/src/umc_h264_brc.cpp",
+        "brc/src/umc_mpeg2_brc.cpp",
+        "brc/src/umc_video_brc.cpp",
+        "vc1_common/src/umc_vc1_common.cpp",
+        "vc1_common/src/umc_vc1_common_tables.cpp",
+        "vc1_common/src/umc_vc1_common_tables_adv.cpp",
+        "vc1_common/src/umc_vc1_spl_frame_constr.cpp",
+        "vc1_common/src/umc_vc1_spl_tbl.cpp",
+        "jpeg_common/src/bitstreamin.cpp",
+        "jpeg_common/src/bitstreamout.cpp",
+        "jpeg_common/src/colorcomp.cpp",
+        "jpeg_common/src/jpegbase.cpp",
+        "jpeg_common/src/membuffin.cpp",
+        "jpeg_common/src/membuffout.cpp",
+    ],
+
+    local_include_dirs: [
+        "brc/include",
+        "h264_enc/include",
+        "vc1_common/include",
+        "jpeg_common/include",
+    ]
+}
+
+cc_library_static {
+    name: "libumc_codecs_merged_hw_bp",
+
+    defaults: ["mfx_defs_defaults"],
+
+    local_include_dirs: [
+         "mpeg2_dec/include",
+         "h265_dec/include",
+         "h264_dec/include",
+         "vc1_dec/include",
+         "jpeg_dec/include",
+         "vp9_dec/include",
+         "av1_dec/include",
+         "jpeg_common/include",
+         "vc1_common/include",
+    ],
+
+    srcs: [
+        "mpeg2_dec/src/*.cpp",
+        "h265_dec/src/*.cpp",
+        "h264_dec/src/*.cpp",
+        "vc1_dec/src/*.cpp",
+        "jpeg_dec/src/*.cpp",
+        "vp9_dec/src/*.cpp",
+        "av1_dec/src/*.cpp",
+    ]
+}

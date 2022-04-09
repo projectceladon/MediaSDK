@@ -1,0 +1,58 @@
+cc_defaults {
+    name: "libasc_defaults",
+
+    defaults: ["mfx_defs_defaults"],
+
+    include_dirs: [
+        "vendor/intel/external/mediasdk_opensource/_studio/mfx_lib/cmrt_cross_platform/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/mfx_lib/genx/asc/isa",
+    ],
+
+    export_include_dirs: [
+        "include",
+    ],
+
+    header_libs: [
+        "soong_libmfx_headers"
+    ],
+
+    cflags: [
+        "-msse4.1",
+        "-mavx2",
+    ],
+}
+
+cc_library_static {
+    name: "libasc_bp",
+ 
+    defaults: ["mfx_defs_defaults"],
+
+    include_dirs: [
+        "vendor/intel/external/mediasdk_opensource/_studio/mfx_lib/cmrt_cross_platform/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/mfx_lib/genx/asc/isa",
+    ],
+
+    export_include_dirs: [
+        "include",
+    ],
+
+    header_libs: [
+        "soong_libmfx_headers"
+    ],
+
+    cflags: [
+        "-msse4.1",
+        "-mavx2",
+    ],
+
+    srcs: [
+        "src/asc_sse4_impl.cpp",
+        "src/asc_avx2_impl.cpp",
+        "src/asc.cpp",
+        "src/asc_c_impl.cpp",
+        "src/asc_common_impl.cpp",
+        "src/iofunctions.cpp",
+        "src/motion_estimation_engine.cpp",
+        "src/tree.cpp"
+    ],
+}

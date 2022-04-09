@@ -15,3 +15,79 @@ cc_library_headers {
 
     vendor: true,
 }
+
+cc_defaults {
+    name: "mfx_defs_defaults",
+
+    cflags: [
+        "-DANDROID",
+        "-DMEDIA_VERSION=21.1.3",
+        "-DMFX_ANDROID_VERSION=MFX_R",
+        "-DMFX_VERSION=1035",
+        "-DMEDIA_VERSION_STR=\"21.1.3.pre\"",
+        "-DMFX_VA",
+        "-include mfx_android_config.h",
+        "-Wno-error",
+        "-Wno-unused-parameter",
+        "-Wno-deprecated-declarations",
+        "-Wno-implicit-fallthrough",
+        "-Wno-missing-field-initializers",
+        "-fstack-protector",
+        "-fexceptions",
+        "-fPIC",
+        "-fPIE",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wformat",
+        "-Wformat-security",
+        "-DENABLE_MAX_NUM_REORDER_FRAMES_OUTPUT",
+        "-DLIBVA_SUPPORT",
+        "-DLIBVA_ANDROID_SUPPORT",
+    ],
+
+    rtti: true,
+
+    ldflags: [
+        "-z noexecstack",
+        "-z relro",
+        "-z now",
+    ],
+
+    header_libs: [
+        "soong_libmfx_headers",
+        "libva_headers",
+    ],
+
+    include_dirs: [
+        "vendor/intel/external/mediasdk_opensource/_studio/shared/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/shared/asc/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/shared/umc/core/umc/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/shared/umc/core/vm/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/shared/umc/core/vm_plus/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/shared/umc/io/umc_va/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/shared/mfx_trace/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/mfx_lib/shared/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/enctools/aenc/include",
+        "vendor/intel/external/mediasdk_opensource/_studio/enctools/include",
+    ],
+
+    compile_multilib: "both",
+
+    arch: {
+        x86: {
+            cflags: [
+                "-DLINUX32",
+            ]
+        },
+
+        x86_64: {
+            cflags: [
+                "-DLINUX32",
+                "-DLINUX64",
+            ]
+        }
+    },
+
+    vendor: true,
+
+    owner: "intel",
+}

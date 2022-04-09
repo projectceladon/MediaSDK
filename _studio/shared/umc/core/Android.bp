@@ -1,0 +1,20 @@
+cc_library_static {
+    name: "libumc_core_merged_hw_bp",
+
+    defaults: ["mfx_defs_defaults"],
+
+    srcs: [
+        "vm/src/*.c",
+        "vm_plus/src/*.c",
+        "umc/src/*.c",
+        "vm/src/*.cpp",
+        "vm_plus/src/*.cpp",
+        "umc/src/*.cpp",
+    ],
+
+    local_include_dirs: [
+        "vm/include",
+        "vm_plus/include",
+        "umc/include",
+    ]
+}

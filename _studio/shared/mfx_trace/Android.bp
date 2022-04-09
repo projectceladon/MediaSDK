@@ -1,0 +1,11 @@
+cc_library_static {
+    name: "libmfx_trace_hw_bp",
+
+    defaults: ["mfx_defs_defaults"],
+
+    srcs: ["src/*.cpp"],
+
+    include_dirs: [
+        "vendor/intel/external/mediasdk_opensource/api/mediasdk_structures",
+    ],
+}
