@@ -1,0 +1,170 @@
+cc_library_headers {
+    name: "libmfx_lib_hw_headers",
+
+    export_include_dirs: [
+        "mfx_lib/decode/h265/include",
+        "mfx_lib/decode/h264/include",
+        "mfx_lib/decode/mpeg2/include",
+        "mfx_lib/decode/vc1/include",
+        "mfx_lib/decode/mjpeg/include",
+        "mfx_lib/decode/vp8/include",
+        "mfx_lib/decode/vp9/include",
+        "mfx_lib/decode/av1/include",
+        "mfx_lib/vpp/include",
+        "mfx_lib/encode_hw/vp9/include",
+        "mfx_lib/encode_hw/h264/include",
+        "mfx_lib/encode_hw/h265/include",
+        "mfx_lib/encode_hw/mjpeg/include",
+        "mfx_lib/encode_hw/hevc",
+        "mfx_lib/encode_hw/hevc/agnostic",
+        "mfx_lib/encode_hw/hevc/agnostic/base",
+        "mfx_lib/encode_hw/hevc/agnostic/g12",
+        "mfx_lib/encode_hw/hevc/linux/base",
+        "mfx_lib/encode_hw/hevc/linux/g12",
+        "mfx_lib/encode_hw/shared",
+        "mfx_lib/genx/h264_encode/isa",
+        "mfx_lib/genx/field_copy/isa",
+        "mfx_lib/genx/copy_kernels/isa",
+        "mfx_lib/genx/mctf/isa",
+        "mfx_lib/genx/asc/isa",
+        "mfx_lib/fei/include",
+        "mfx_lib/scheduler/linux/include",
+        "mfx_lib/cmrt_cross_platform/include",
+        "mfx_lib/mctf_package/mctf/include",
+        "shared/include",
+        "shared/asc/include",
+    ],
+  
+    vendor: true,
+}
+
+cc_library_static {
+    name: "libmfx_lib_merged_hw_bp",
+
+    defaults: ["mfx_defs_defaults"],
+
+    header_libs: [
+        "libmfx_lib_hw_headers",
+        "libumc_codecs_headers",
+    ],
+
+    srcs: [
+        "mfx_lib/scheduler/linux/src/*.cpp",
+        "mfx_lib/fei/src/*.cpp",
+        "mfx_lib/decode/h265/src/*.cpp",
+        "mfx_lib/decode/h264/src/*.cpp",
+        "mfx_lib/decode/mpeg2/src/*.cpp",
+        "mfx_lib/decode/vc1/src/*.cpp",
+        "mfx_lib/decode/mjpeg/src/*.cpp",
+        "mfx_lib/decode/vp8/src/*.cpp",
+        "mfx_lib/decode/vp9/src/*.cpp",
+        "mfx_lib/decode/av1/src/*.cpp",
+        "mfx_lib/vpp/src/*.cpp",
+        "mfx_lib/encode_hw/h265/src/*.cpp",
+        "mfx_lib/encode_hw/h264/src/*.cpp",
+        "mfx_lib/encode_hw/vp9/src/*.cpp",
+        "mfx_lib/encode_hw/mjpeg/src/*.cpp",
+        "mfx_lib/cmrt_cross_platform/src/*.cpp",
+        "mfx_lib/mctf_package/mctf/src/*.cpp",
+        "mfx_lib/genx/h264_encode/isa/*.cpp",
+        "mfx_lib/encode_hw/hevc/*.cpp",
+        "mfx_lib/encode_hw/hevc/agnostic/*.cpp",
+        "mfx_lib/encode_hw/hevc/agnostic/base/*.cpp",
+        "mfx_lib/encode_hw/hevc/agnostic/g12/*.cpp",
+        "mfx_lib/encode_hw/hevc/linux/base/*.cpp",
+        "mfx_lib/encode_hw/hevc/linux/g12/*.cpp",
+        "mfx_lib/encode_hw/shared/*.cpp",
+        "mfx_lib/shared/src/mfx_brc_common.cpp",
+        "mfx_lib/shared/src/mfx_common_int.cpp",
+        "mfx_lib/shared/src/mfx_enc_common.cpp",
+        "mfx_lib/shared/src/mfx_vc1_dec_common.cpp",
+        "mfx_lib/shared/src/mfx_vpx_dec_common.cpp",
+        "mfx_lib/shared/src/mfx_common_decode_int.cpp",
+        "mfx_lib/shared/src/mfx_h264_enc_common_hw.cpp",
+        "mfx_lib/shared/src/mfx_h264_encode_vaapi.cpp",
+        "mfx_lib/shared/src/mfx_h264_encode_factory.cpp",
+        "mfx_lib/genx/asc/isa/*.cpp",
+        "mfx_lib/genx/copy_kernels/isa/*.cpp",
+        "mfx_lib/genx/field_copy/isa/*.cpp",
+        "mfx_lib/genx/mctf/isa/*.cpp",
+    ],
+}
+
+cc_defaults {
+    name: "libmfx_lib_shared_defaults",
+
+    defaults: [
+        "mfx_defs_defaults",
+    ],
+
+    header_libs: [
+        "libmfx_lib_hw_headers",
+        "libumc_codecs_headers",
+    ],
+
+    srcs: [
+        "mfx_lib/shared/src/libmfxsw.cpp",
+        "mfx_lib/shared/src/libmfxsw_async.cpp",
+        "mfx_lib/shared/src/libmfxsw_decode.cpp",
+        "mfx_lib/shared/src/libmfxsw_enc.cpp",
+        "mfx_lib/shared/src/libmfxsw_encode.cpp",
+        "mfx_lib/shared/src/libmfxsw_pak.cpp",
+        "mfx_lib/shared/src/libmfxsw_plugin.cpp",
+        "mfx_lib/shared/src/libmfxsw_query.cpp",
+        "mfx_lib/shared/src/libmfxsw_session.cpp",
+        "mfx_lib/shared/src/libmfxsw_vpp.cpp",
+        "mfx_lib/shared/src/mfx_session.cpp",
+        "mfx_lib/shared/src/mfx_user_plugin.cpp",
+        "mfx_lib/shared/src/mfx_critical_error_handler.cpp",
+        "shared/src/cm_mem_copy.cpp",
+        "shared/src/fast_copy.cpp",
+        "shared/src/fast_copy_c_impl.cpp",
+        "shared/src/fast_copy_sse4_impl.cpp",
+        "shared/src/mfx_vpp_vaapi.cpp",
+        "shared/src/libmfx_allocator.cpp",
+        "shared/src/libmfx_allocator_vaapi.cpp",
+        "shared/src/libmfx_core.cpp",
+        "shared/src/libmfx_core_hw.cpp",
+        "shared/src/libmfx_core_factory.cpp",
+        "shared/src/libmfx_core_vaapi.cpp",
+        "shared/src/mfx_umc_alloc_wrapper.cpp",
+        "shared/src/mfx_umc_mjpeg_vpp.cpp",
+    ],
+
+    static_libs: [
+        "libmfx_lib_merged_hw_bp",
+        "libumc_codecs_merged_hw_bp",
+        "libumc_codecs_merged_bp",
+        "libumc_io_merged_hw_bp",
+        "libumc_core_merged_hw_bp",
+        "libmfx_trace_hw_bp",
+        "libasc_bp",
+        "libaenc_bp",
+    ],
+
+    shared_libs: [
+        "libva_bp",
+    ],
+
+    ldflags: [
+        "-Wl",
+    ],
+
+    version_script: "mfx_lib/libmfxhw.map",
+}
+
+cc_library_shared {
+    name: "libmfxhw32bp",
+
+    defaults: ["libmfx_lib_shared_defaults"],
+
+    compile_multilib: "32",
+}
+
+cc_library_shared {
+    name: "libmfxhw64bp",
+
+    defaults: ["libmfx_lib_shared_defaults"],
+
+    compile_multilib: "64",
+}

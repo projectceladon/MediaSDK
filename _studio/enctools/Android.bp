@@ -1,0 +1,14 @@
+cc_library_static {
+    name: "libaenc_bp",
+
+    defaults: ["mfx_defs_defaults"],
+
+    srcs: [
+        "enctools.cpp",
+        "src/mfx_enctools_brc.cpp",
+        "src/mfx_enctools_common.cpp",
+        "src/mfx_enctools_aenc.cpp",
+        "src/mfx_enctools_utils.cpp",
+    ]
+}
+

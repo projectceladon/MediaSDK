@@ -1,0 +1,17 @@
+cc_library_static {
+    name: "libumc_io_merged_hw_bp",
+
+    defaults: ["mfx_defs_defaults"],
+
+    srcs: [
+        "umc_va/src/umc_va.cpp",
+        "umc_va/src/umc_va_fei.cpp",
+        "umc_va/src/umc_va_linux.cpp",
+        "umc_va/src/umc_va_linux_protected.cpp",
+        "umc_va/src/umc_va_video_processing.cpp",
+    ],
+
+    local_include_dirs: [
+        "umc_va/include",
+    ]
+}
