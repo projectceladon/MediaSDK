@@ -43,6 +43,7 @@ namespace MFX {
     #ifdef ANDROID
         #define LIBMFXSW "libmfxsw32.so"
         #define LIBMFXHW "libmfxhw32.so"
+	#define ONEVPLRT "libmfx-gen.so"
     #else
         #define LIBMFXSW "libmfxsw32.so.1"
         #define LIBMFXHW "libmfxhw32.so.1"
@@ -52,6 +53,7 @@ namespace MFX {
     #ifdef ANDROID
         #define LIBMFXSW "libmfxsw64.so"
         #define LIBMFXHW "libmfxhw64.so"
+	#define ONEVPLRT "libmfx-gen.so"
     #else
         #define LIBMFXSW "libmfxsw64.so.1"
         #define LIBMFXHW "libmfxhw64.so.1"

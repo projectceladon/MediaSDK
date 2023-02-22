@@ -2,8 +2,8 @@ LOCAL_PATH:= $(MFX_HOME)/_studio
 
 # =============================================================================
 
-MFX_LOCAL_DECODERS := h265 h264 mpeg2 vc1 mjpeg vp8 vp9
-MFX_LOCAL_ENCODERS := h265 h264 mjpeg vp9
+MFX_LOCAL_DECODERS := h265 h264 mpeg2 vc1 mjpeg vp8 vp9 av1
+MFX_LOCAL_ENCODERS := hevc h264 mjpeg vp9
 
 # Setting subdirectories to march thru
 MFX_LOCAL_DIRS := \
@@ -48,6 +48,7 @@ MFX_LOCAL_SRC_FILES_HW += \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_constraints.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_dirty_rect.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_dpb_report.cpp \
+    mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_la_ext_brc.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_encoded_frame_info.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_ext_brc.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_hdr_sei.cpp \
@@ -103,7 +104,9 @@ MFX_LOCAL_INCLUDES_HW := \
     $(MFX_HOME)/_studio/mfx_lib/encode_hw/hevc/linux \
     $(MFX_HOME)/_studio/mfx_lib/encode_hw/hevc/linux/base \
     $(MFX_HOME)/_studio/mfx_lib/encode_hw/hevc/linux/g12 \
-    $(MFX_HOME)/_studio/mfx_lib/encode_hw/shared
+    $(MFX_HOME)/_studio/mfx_lib/encode_hw/shared \
+    $(MFX_HOME)/_studio/enctools/include \
+    $(MFX_HOME)/_studio/mfx_lib/scheduler/linux/include
 
 MFX_LOCAL_STATIC_LIBRARIES_HW := \
     libmfx_lib_merged_hw \
@@ -125,7 +128,7 @@ UMC_DIRS := \
     brc
 
 UMC_DIRS_IMPL := \
-    h265_dec h264_dec mpeg2_dec vc1_dec jpeg_dec vp9_dec \
+    h265_dec h264_dec mpeg2_dec vc1_dec jpeg_dec vp9_dec av1_dec \
     vc1_common jpeg_common
 
 UMC_LOCAL_INCLUDES := \
@@ -241,7 +244,11 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS := \
     $(MFX_CFLAGS_INTERNAL_HW) \
-    -Wall -Werror -Wno-unused-parameter
+    -D_LIBCPP_ENABLE_CXX17_REMOVED_FEATURES \
+    -Wno-error \
+    -Wno-unused-parameter \
+    -Wno-unused-command-line-argument 
+
 LOCAL_CFLAGS_32 := $(MFX_CFLAGS_INTERNAL_32)
 LOCAL_CFLAGS_64 := $(MFX_CFLAGS_INTERNAL_64)
 
@@ -266,7 +273,11 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS := \
     $(MFX_CFLAGS_INTERNAL_HW) \
-    -Wall -Werror -Wno-unused-parameter
+    -Wno-error \
+    -Wno-unused-parameter \
+    -Wno-unused-command-line-argument \
+
+
 LOCAL_CFLAGS_32 := $(MFX_CFLAGS_INTERNAL_32)
 
 LOCAL_LDFLAGS := $(MFX_LOCAL_LDFLAGS_HW)
@@ -300,7 +311,11 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS := \
     $(MFX_CFLAGS_INTERNAL_HW) \
-    -Wall -Werror -Wno-unused-parameter
+    -Wno-error \
+    -Wno-unused-parameter \
+    -Wno-unused-command-line-argument \
+
+
 LOCAL_CFLAGS_64 := $(MFX_CFLAGS_INTERNAL_64)
 
 LOCAL_LDFLAGS := $(MFX_LOCAL_LDFLAGS_HW)
