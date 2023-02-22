@@ -25,6 +25,7 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include "pipeline_region_encode.h"
 #include <stdarg.h>
 #include <string>
+#include <cmath>
 #include "version.h"
 
 #define VAL_CHECK(val, argIdx, argName) \

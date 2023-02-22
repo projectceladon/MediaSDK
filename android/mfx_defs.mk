@@ -14,7 +14,7 @@
 MFX_CFLAGS := -DANDROID
 
 #Media Version
-MEDIA_VERSION := 20.2
+MEDIA_VERSION := 23.1.2
 MEDIA_VERSION_EXTRA := ""
 MEDIA_VERSION_ALL := $(MEDIA_VERSION).pre$(MEDIA_VERSION_EXTRA)
 
@@ -67,7 +67,7 @@ else ifneq ($(filter MFX_P, $(MFX_ANDROID_VERSION)),)
 else
   MFX_CFLAGS += \
     -DMFX_ENABLE_CPLIB \
-    -DMFX_VERSION=1033
+    -DMFX_VERSION=1035
 endif
 
 MFX_CFLAGS += \
@@ -80,7 +80,9 @@ MFX_CFLAGS += \
   -fPIE -fPIC -pie \
   -O2 -D_FORTIFY_SOURCE=2 \
   -Wformat -Wformat-security \
-  -fexceptions -frtti
+  -fexceptions -frtti \
+  -Wno-null-pointer-subtraction
+
 
 ifeq ($(filter MFX_O MFX_O_MR1, $(MFX_ANDROID_VERSION)),)
   ifeq ($(MFX_ENABLE_ITT_TRACES),)
