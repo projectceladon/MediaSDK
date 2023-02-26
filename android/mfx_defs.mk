@@ -80,7 +80,9 @@ MFX_CFLAGS += \
   -fPIE -fPIC \
   -O2 -D_FORTIFY_SOURCE=2 \
   -Wformat -Wformat-security \
-  -fexceptions -frtti
+  -fexceptions -frtti \
+  -Wno-null-pointer-subtraction
+
 
 ifeq ($(filter MFX_O MFX_O_MR1, $(MFX_ANDROID_VERSION)),)
   ifeq ($(MFX_ENABLE_ITT_TRACES),)

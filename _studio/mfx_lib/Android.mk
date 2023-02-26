@@ -62,6 +62,7 @@ MFX_LOCAL_SRC_FILES_HW += \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_roi.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_task.cpp \
     mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_weighted_prediction.cpp \
+    mfx_lib/encode_hw/hevc/agnostic/base/hevcehw_base_recon_info.cpp \
     mfx_lib/encode_hw/hevc/agnostic/g12/hevcehw_g12_caps.cpp \
     mfx_lib/encode_hw/hevc/agnostic/g12/hevcehw_g12_rext.cpp \
     mfx_lib/encode_hw/hevc/agnostic/g12/hevcehw_g12_scc.cpp \
@@ -76,10 +77,12 @@ MFX_LOCAL_SRC_FILES_HW += \
     mfx_lib/encode_hw/hevc/linux/base/hevcehw_base_weighted_prediction_lin.cpp \
     mfx_lib/encode_hw/hevc/linux/g12/hevcehw_g12_lin.cpp \
     mfx_lib/encode_hw/hevc/linux/g12/hevcehw_g12_rext_lin.cpp \
+    mfx_lib/encode_hw/hevc/linux/g12/hevcehw_g12_qp_modulation_lin.cpp \
     mfx_lib/encode_hw/shared/ehw_resources_pool.cpp \
     mfx_lib/encode_hw/shared/ehw_task_manager.cpp \
     mfx_lib/encode_hw/shared/ehw_device_vaapi.cpp \
-    mfx_lib/encode_hw/shared/ehw_utils_vaapi.cpp
+    mfx_lib/encode_hw/shared/ehw_utils_vaapi.cpp \
+    enctools/src/mfx_enctools_brc.cpp
 
 MFX_LOCAL_INCLUDES := \
     $(foreach dir, $(MFX_LOCAL_DIRS), $(wildcard $(LOCAL_PATH)/mfx_lib/$(dir)/include))
@@ -106,7 +109,9 @@ MFX_LOCAL_INCLUDES_HW := \
     $(MFX_HOME)/_studio/mfx_lib/encode_hw/hevc/linux/g12 \
     $(MFX_HOME)/_studio/mfx_lib/encode_hw/shared \
     $(MFX_HOME)/_studio/enctools/include \
+    $(MFX_HOME)/_studio/enctools/aenc/include \
     $(MFX_HOME)/_studio/mfx_lib/scheduler/linux/include
+
 
 MFX_LOCAL_STATIC_LIBRARIES_HW := \
     libmfx_lib_merged_hw \
@@ -227,6 +232,14 @@ MFX_LIB_SHARED_FILES_2 := $(addprefix shared/src/, \
     mfx_umc_alloc_wrapper.cpp \
     mfx_umc_mjpeg_vpp.cpp)
 
+MFX_LIB_SCHEDULE_FILES := $(addprefix mfx_lib/scheduler/linux/src/, \
+    mfx_scheduler_core.cpp \
+    mfx_scheduler_core_iunknown.cpp \
+    mfx_scheduler_core_task_management.cpp \
+    mfx_scheduler_core_ischeduler.cpp \
+    mfx_scheduler_core_task.cpp \
+    mfx_scheduler_core_thread.cpp)
+
 # =============================================================================
 
 include $(CLEAR_VARS)
@@ -247,7 +260,8 @@ LOCAL_CFLAGS := \
     -D_LIBCPP_ENABLE_CXX17_REMOVED_FEATURES \
     -Wno-error \
     -Wno-unused-parameter \
-    -Wno-unused-command-line-argument 
+    -Wno-unused-command-line-argument \
+    -Wno-null-pointer-subtraction
 
 LOCAL_CFLAGS_32 := $(MFX_CFLAGS_INTERNAL_32)
 LOCAL_CFLAGS_64 := $(MFX_CFLAGS_INTERNAL_64)
@@ -264,7 +278,7 @@ include $(BUILD_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
 
-LOCAL_SRC_FILES := $(MFX_LIB_SHARED_FILES_1) $(MFX_LIB_SHARED_FILES_2)
+LOCAL_SRC_FILES := $(MFX_LIB_SHARED_FILES_1) $(MFX_LIB_SHARED_FILES_2) $(MFX_LIB_SCHEDULE_FILES)
 
 LOCAL_C_INCLUDES := \
     $(MFX_LOCAL_INCLUDES_HW) \
@@ -276,6 +290,7 @@ LOCAL_CFLAGS := \
     -Wno-error \
     -Wno-unused-parameter \
     -Wno-unused-command-line-argument \
+    -Wno-null-pointer-subtraction
 
 
 LOCAL_CFLAGS_32 := $(MFX_CFLAGS_INTERNAL_32)
@@ -302,7 +317,7 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 include $(MFX_HOME)/android/mfx_defs.mk
 
-LOCAL_SRC_FILES := $(MFX_LIB_SHARED_FILES_1) $(MFX_LIB_SHARED_FILES_2)
+LOCAL_SRC_FILES := $(MFX_LIB_SHARED_FILES_1) $(MFX_LIB_SHARED_FILES_2) $(MFX_LIB_SCHEDULE_FILES)
 
 LOCAL_C_INCLUDES := \
     $(MFX_LOCAL_INCLUDES_HW) \
@@ -314,6 +329,7 @@ LOCAL_CFLAGS := \
     -Wno-error \
     -Wno-unused-parameter \
     -Wno-unused-command-line-argument \
+    -Wno-null-pointer-subtraction
 
 
 LOCAL_CFLAGS_64 := $(MFX_CFLAGS_INTERNAL_64)

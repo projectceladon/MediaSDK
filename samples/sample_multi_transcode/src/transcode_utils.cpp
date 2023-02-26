@@ -44,6 +44,7 @@ or https://software.intel.com/en-us/media-client-solutions-support.
 #include <iterator>
 #include <cstring>
 #include <cstdlib>
+#include <cmath>
 #include <algorithm>
 
 using namespace TranscodingSample;
