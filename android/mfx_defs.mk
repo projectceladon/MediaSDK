@@ -5,7 +5,7 @@
 #   MFX_CFLAGS - common flags for all targets
 #   MFX_CFLAGS_LIBVA - LibVA support flags (to build apps with or without LibVA support)
 #   MFX_INCLUDES - common include paths for all targets
-#   MFX_INCLUDES_LIBVA - include paths to LibVA headers
+#   libva_headers - include paths to LibVA headers
 #   MFX_LDFLAGS - common link flags for all targets
 
 # =============================================================================
@@ -115,7 +115,7 @@ endif
 # Setting usual paths to include files
 MFX_INCLUDES := $(LOCAL_PATH)/include
 
-MFX_INCLUDES_LIBVA := $(TARGET_OUT_HEADERS)/libva
+LOCAL_HEADER_LIBRARIES := libmfx_headers libva_headers
 
 # Setting usual link flags
 MFX_LDFLAGS := \
