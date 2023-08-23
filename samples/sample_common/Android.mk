@@ -9,13 +9,10 @@ LOCAL_SRC_FILES := \
 
 LOCAL_C_INCLUDES := \
     $(MFX_INCLUDES) \
-    $(MFX_INCLUDES_LIBVA)
 
 LOCAL_CFLAGS := \
     $(MFX_CFLAGS) \
     $(MFX_CFLAGS_LIBVA)
-
-LOCAL_HEADER_LIBRARIES := libmfx_headers
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libsample_common
