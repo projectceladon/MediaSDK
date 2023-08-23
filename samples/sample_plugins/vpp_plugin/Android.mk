@@ -14,7 +14,6 @@ LOCAL_CFLAGS := \
     $(MFX_CFLAGS) \
     $(MFX_CFLAGS_LIBVA)
 
-LOCAL_HEADER_LIBRARIES := libmfx_headers
 LOCAL_STATIC_LIBRARIES := libsample_common
 
 LOCAL_MODULE_TAGS := optional

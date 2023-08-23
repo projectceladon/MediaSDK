@@ -7,7 +7,6 @@ LOCAL_SRC_FILES := $(addprefix src/, $(notdir $(wildcard $(LOCAL_PATH)/src/*.cpp
 
 LOCAL_C_INCLUDES := \
     $(MFX_INCLUDES) \
-    $(MFX_INCLUDES_LIBVA) \
     $(MFX_HOME)/samples/sample_common/include
 
 LOCAL_CFLAGS := \
@@ -17,7 +16,6 @@ LOCAL_CFLAGS := \
 LOCAL_CFLAGS_32 := $(MFX_CFLAGS_INTERNAL_32)
 LOCAL_CFLAGS_64 := $(MFX_CFLAGS_INTERNAL_64)
 
-LOCAL_HEADER_LIBRARIES := libmfx_headers
 LOCAL_STATIC_LIBRARIES := libsample_common libmfx
 LOCAL_SHARED_LIBRARIES := libva libva-android
 
