@@ -131,7 +131,7 @@ template <class F>
 struct result_of;
 
 template <typename TRes, typename... TArgs>
-struct result_of<TRes(TArgs...)> : std::result_of<TRes(TArgs...)> {};
+struct result_of<TRes(TArgs...)> {};
 
 template <typename TRes, typename... TArgs>
 struct result_of<TRes(*const&)(TArgs...)>
